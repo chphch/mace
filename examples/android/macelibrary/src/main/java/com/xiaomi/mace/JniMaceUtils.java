@@ -14,13 +14,13 @@
 
 package com.xiaomi.mace;
 
-public class JniMaceUtils {
+    public class JniMaceUtils {
 
-    static {
-        System.loadLibrary("mace_mobile_jni");
-    }
+        static {
+            System.loadLibrary("mace_mobile_jni");
+        }
 
-    public static native int maceMobilenetCreateGPUContext(String storagePath);
+        public static native int maceMobilenetCreateGPUContext(String storagePath);
 
     public static native int maceMobilenetCreateEngine(int ompNumThreads, int cpuAffinityPolicy, int gpuPerfHint, int gpuPriorityHint, String model, String device);
 
