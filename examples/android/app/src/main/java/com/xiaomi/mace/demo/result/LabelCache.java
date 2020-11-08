@@ -53,7 +53,7 @@ public class LabelCache {
             BufferedReader reader = new BufferedReader(new InputStreamReader(assetManager.open("cacheLabel.txt")));
             String readLine = null;
             while ((readLine = reader.readLine()) != null) {
-                Log.d("labelCache", "readLine = " + readLine);
+//                Log.d("labelCache", "readLine = " + readLine);
                 resultLabel.add(readLine);
             }
             reader.close();
