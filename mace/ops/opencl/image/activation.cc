@@ -58,6 +58,11 @@ MaceStatus ActivationKernel::Compute(
         built_options.emplace("-DUSE_PRELU");
         break;
       }
+      case ELU: {
+        tuning_key_prefix_ = "elu_opencl_kernel";
+        built_options.emplace("-DUSE_ELU");
+        break;
+      }
       case TANH: {
         tuning_key_prefix_ = "tanh_opencl_kernel";
         built_options.emplace("-DUSE_TANH");
@@ -99,7 +104,7 @@ MaceStatus ActivationKernel::Compute(
       kernel_.setArg(idx++, *(alpha->opencl_image()));
     }
     kernel_.setArg(idx++, relux_max_limit_);
-    kernel_.setArg(idx++, leakyrelu_coefficient_);
+    kernel_.setArg(idx++, activation_coefficient_);
     kernel_.setArg(idx++, *(output->opencl_image()));
 
     input_shape_ = input->shape();

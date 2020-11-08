@@ -85,7 +85,7 @@ OnnxSupportedOps = [
     'Div',
     'Dropout',
     'DynamicLSTM',
-    # 'Elu',
+    'Elu',
     'Equal',
     # 'Exp',
     # 'Expand',
@@ -323,6 +323,7 @@ class OnnxConverter(base_converter.ConverterInterface):
         OnnxOpType.Relu.name: ActivationType.RELU,
         OnnxOpType.LeakyRelu.name: ActivationType.LEAKYRELU,
         OnnxOpType.PRelu.name: ActivationType.PRELU,
+        OnnxOpType.Elu.name: ActivationType.ELU,
         OnnxOpType.Tanh.name: ActivationType.TANH,
         OnnxOpType.Sigmoid.name: ActivationType.SIGMOID,
     }
@@ -348,6 +349,7 @@ class OnnxConverter(base_converter.ConverterInterface):
             OnnxOpType.Dropout.name: self.convert_dropout,
             OnnxOpType.DimRange.name: self.convert_dim_range,
             OnnxOpType.Div.name: self.convert_eltwise,
+            OnnxOpType.Elu.name: self.convert_activation,
             OnnxOpType.Equal.name: self.convert_eltwise,
             OnnxOpType.ExtractPooling.name: self.convert_extract_pooling,
             OnnxOpType.Flatten.name: self.convert_flatten,
@@ -413,6 +415,8 @@ class OnnxConverter(base_converter.ConverterInterface):
         ConverterUtil.set_filter_format(self._mace_net_def, DataFormat.OIHW)
         ConverterUtil.add_data_format_arg(self._mace_net_def,
                                           self._data_format)
+        ConverterUtil.set_framework_type(
+            self._mace_net_def, FrameworkType.ONNX.value)
         onnx_model = onnx.load(src_model_file)
 
         ir_version = onnx_model.ir_version
@@ -602,8 +606,8 @@ class OnnxConverter(base_converter.ConverterInterface):
         for output in node.outputs:
             op.output.append(output)
             if with_shape:
+                output_shape = op.output_shape.add()
                 if output in self._graph_shapes_dict:
-                    output_shape = op.output_shape.add()
                     shape_info = self._graph_shapes_dict[output]
                     output_shape.dims.extend(shape_info)
 
@@ -631,10 +635,12 @@ class OnnxConverter(base_converter.ConverterInterface):
         else:
             if node.op_type == OnnxOpType.LeakyRelu.name:
                 alpha_value = 0.01
+            elif node.op_type == OnnxOpType.Elu.name:
+                alpha_value = 1.0
             else:
                 alpha_value = 0
         alpha_arg = op.arg.add()
-        alpha_arg.name = MaceKeyword.mace_activation_leakyrelu_coefficient_str
+        alpha_arg.name = MaceKeyword.mace_activation_coefficient_str
         alpha_arg.f = alpha_value
 
     def convert_affine(self, node):
@@ -944,7 +950,8 @@ class OnnxConverter(base_converter.ConverterInterface):
                     node.inputs[0] not in self._consts:
                 const_name = node.inputs[1]
                 const_tensor = self._consts[const_name]
-                if len(const_tensor.dims) == 0:
+                dims = const_tensor.dims
+                if len(dims) == 0 or (len(dims) == 1 and dims[0] == 1):
                     value_arg = op.arg.add()
                     value_arg.name = MaceKeyword.mace_scalar_input_str
                     if const_tensor.data_type == mace_pb2.DT_INT32:
@@ -964,7 +971,8 @@ class OnnxConverter(base_converter.ConverterInterface):
                     node.inputs[1] not in self._consts:
                 const_name = node.inputs[0]
                 const_tensor = self._consts[const_name]
-                if len(const_tensor.dims) == 0:
+                dims = const_tensor.dims
+                if len(dims) == 0 or (len(dims) == 1 and dims[0] == 1):
                     value_arg = op.arg.add()
                     value_arg.name = MaceKeyword.mace_scalar_input_str
                     if const_tensor.data_type == mace_pb2.DT_INT32:

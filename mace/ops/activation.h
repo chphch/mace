@@ -42,6 +42,8 @@ inline ActivationType StringToActivationType(const std::string type) {
     return ActivationType::NOOP;
   } else if (type == "LEAKYRELU") {
     return ActivationType::LEAKYRELU;
+  } else if (type == "ELU") {
+    return ActivationType::ELU;
   } else {
     LOG(FATAL) << "Unknown activation type: " << type;
   }
@@ -75,7 +77,6 @@ void PReLUActivation(const OpContext *context,
     }
   }, 0, outer_size, 1, 0, input_chan, 1);
 }
-
 }  // namespace ops
 }  // namespace mace
 

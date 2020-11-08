@@ -66,7 +66,7 @@ void TestSimpleLeakyRelu() {
       .Input("Input")
       .Output("Output")
       .AddStringArg("activation", "LEAKYRELU")
-      .AddFloatArg("leakyrelu_coefficient", 0.1)
+      .AddFloatArg("activation_coefficient", 0.1)
       .Finalize(net.NewOperatorDef());
 
   // Run
@@ -237,6 +237,58 @@ TEST_F(ActivationOpTest, OPENCLSimplePrelu) {
 
 namespace {
 template <DeviceType D>
+void TestSimpleElu() {
+  OpsTestNet net;
+
+  // Add input data
+  net.AddInputFromArray<D, float>(
+      "Input", {2, 2, 2, 2},
+      {-7, 7, -6, 6, -5, 5, -4, 4, -3, 3, -2, 2, -1, 1, 0, 0});
+
+  if (D == DeviceType::GPU) {
+    OpDefBuilder("Activation", "EluTest")
+        .Input("Input")
+        .Output("Output")
+        .AddStringArg("activation", "ELU")
+        .AddFloatArg("activation_coefficient", 2.0)
+        .Finalize(net.NewOperatorDef());
+
+    // Run
+    net.RunOp(D);
+  } else {
+    net.TransformDataFormat<D, float>(
+        "Input", DataFormat::NHWC, "InputNCHW", DataFormat::NCHW);
+    OpDefBuilder("Activation", "EluTest")
+        .Input("InputNCHW")
+        .Output("OutputNCHW")
+        .AddStringArg("activation", "ELU")
+        .AddFloatArg("activation_coefficient", 2.0)
+        .Finalize(net.NewOperatorDef());
+
+    // Run
+    net.RunOp(D);
+    net.TransformDataFormat<D, float>(
+        "OutputNCHW", DataFormat::NCHW, "Output", DataFormat::NHWC);
+  }
+
+  auto expected = net.CreateTensor<float>(
+      {2, 2, 2, 2},
+      {-1.998176236068891, 7, -1.9950424956466672, 6, -1.986524106001829,
+       5, -1.9633687222225316, 4,
+       -1.900425863264272, 3, -1.7293294335267746, 2, -1.2642411176571153,
+       1, 0, 0});
+  ExpectTensorNear<float>(*expected, *net.GetOutput("Output"), 1e-5);
+}
+}  // namespace
+
+TEST_F(ActivationOpTest, CPUSimpleElu) { TestSimpleElu<DeviceType::CPU>(); }
+
+TEST_F(ActivationOpTest, OPENCLSimpleElu) {
+  TestSimpleElu<DeviceType::GPU>();
+}
+
+namespace {
+template <DeviceType D>
 void TestSimpleTanh() {
   OpsTestNet net;
 
@@ -308,6 +360,117 @@ TEST_F(ActivationOpTest, OPENCLSimpleSigmoid) {
   TestSimpleSigmoid<DeviceType::GPU>();
 }
 
+namespace {
+void TestQuantized(const index_t size, const char *type) {
+  OpsTestNet net;
+  std::vector<index_t> input_shape{size};
+  net.AddRandomInput<CPU, float>(
+      "Input", input_shape, false, false);
+  net.AddRandomInput<DeviceType::CPU, float>(
+      "Output", input_shape, false, true, true);
+  OpDefBuilder("Activation", "ActivationTest")
+      .Input("Input")
+      .Output("Output")
+      .AddStringArg("activation", type)
+      .AddIntArg("T", DT_FLOAT)
+      .Finalize(net.NewOperatorDef());
+
+  net.RunOp(CPU);
+
+  OpDefBuilder("Quantize", "QuantizeInput")
+      .Input("Input")
+      .Output("QuantizedInput")
+      .OutputType({DT_UINT8})
+      .AddIntArg("T", DT_UINT8)
+      .AddIntArg("non_zero", true)
+      .Finalize(net.NewOperatorDef());
+  net.RunOp();
+
+  net.AddRandomInput<DeviceType::CPU, uint8_t>("QuantizedOutput", input_shape);
+  OpDefBuilder("Activation", "QuantizedActivationTest")
+      .Input("QuantizedInput")
+      .Output("QuantizedOutput")
+      .AddStringArg("activation", type)
+      .AddIntArg("T", DT_UINT8)
+      .Finalize(net.NewOperatorDef());
+  net.RunOp();
+
+  OpDefBuilder("Dequantize", "DeQuantizeTest")
+      .Input("QuantizedOutput")
+      .Output("DequantizedOutput")
+      .OutputType({DT_FLOAT})
+      .AddIntArg("T", DT_UINT8)
+      .Finalize(net.NewOperatorDef());
+  net.RunOp();
+
+  // Check
+  ExpectTensorSimilar<float>(*net.GetOutput("Output"),
+                             *net.GetTensor("DequantizedOutput"), 0.01);
+}
+}  // namespace
+
+TEST_F(ActivationOpTest, Quantized) {
+  TestQuantized(64, "RELU");
+  TestQuantized(64, "RELUX");
+  TestQuantized(37, "RELU");
+  TestQuantized(37, "RELUX");
+}
+
+#ifdef MACE_ENABLE_BFLOAT16
+namespace {
+void TestBFloat16(const char *activation) {
+  OpsTestNet net;
+
+  static unsigned int seed = time(NULL);
+  index_t batch = 3 + (rand_r(&seed) % 10);
+  index_t channels = 3 + (rand_r(&seed) % 10);
+  index_t height = 3 + (rand_r(&seed) % 10);
+  index_t width = 3 + (rand_r(&seed) % 10);
+
+  // Add input data
+  net.AddRandomInput<CPU, float>("Input", {batch, channels, height, width});
+  net.AddRandomInput<CPU, float>("Alpha", {channels}, true);
+  net.Cast<CPU, float, BFloat16>("Input", "BF16Input");
+  net.Cast<CPU, float, BFloat16>("Alpha", "BF16Alpha");
+
+  OpDefBuilder("Activation", "ActivationTest")
+      .Input("Input")
+      .Input("Alpha")
+      .Output("Output")
+      .AddStringArg("activation", activation)
+      .AddFloatArg("activation_coefficient", 0.1)
+      .AddFloatArg("max_limit", 6)
+      .AddIntArg("T", static_cast<int>(DT_FLOAT))
+      .Finalize(net.NewOperatorDef());
+  net.RunOp(CPU);
+
+  OpDefBuilder("Activation", "BF16ActivationTest")
+      .Input("BF16Input")
+      .Input("BF16Alpha")
+      .Output("BF16Output")
+      .AddStringArg("activation", activation)
+      .AddFloatArg("activation_coefficient", 0.1)
+      .AddFloatArg("max_limit", 6)
+      .AddIntArg("T", static_cast<int>(DT_BFLOAT16))
+      .Finalize(net.NewOperatorDef());
+  net.RunOp(CPU);
+
+  net.Cast<CPU, BFloat16, float>("BF16Output", "CastOutput");
+
+  ExpectTensorSimilar<float>(*net.GetOutput("Output"),
+                             *net.GetTensor("CastOutput"), 1e-5);
+}
+}  // namespace
+
+TEST_F(ActivationOpTest, BFloat16) {
+  TestBFloat16("RELU");
+  TestBFloat16("LEAKYRELU");
+  TestBFloat16("RELUX");
+  TestBFloat16("PRELU");
+  TestBFloat16("TANH");
+  TestBFloat16("SIGMOID");
+}
+#endif  // MACE_ENABLE_BFLOAT16
 }  // namespace test
 }  // namespace ops
 }  // namespace mace

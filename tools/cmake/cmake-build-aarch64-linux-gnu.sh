@@ -17,14 +17,24 @@ if [[ "$RUNMODE" == "code" ]]; then
     MACE_ENABLE_CODE_MODE=ON
 fi
 
+MACE_ENABLE_QUANTIZE=OFF
+if [[ "$QUANTIZE" == "ON" ]]; then
+    MACE_ENABLE_QUANTIZE=ON
+fi
+
+DMACE_ENABLE_BFLOAT16=OFF
+if [[ "$BFLOAT16" == "ON" ]]; then
+    DMACE_ENABLE_BFLOAT16=ON
+fi
+
 mkdir -p ${BUILD_DIR} && cd ${BUILD_DIR}
 cmake -DCROSSTOOL_ROOT=${LINARO_AARCH64_LINUX_GNU} \
       -DCMAKE_TOOLCHAIN_FILE=./cmake/toolchains/aarch64-linux-gnu.cmake \
       -DCMAKE_BUILD_TYPE=Release          \
       -DMACE_ENABLE_NEON=ON               \
-      -DMACE_ENABLE_QUANTIZE=ON           \
+      -DMACE_ENABLE_QUANTIZE=${MACE_ENABLE_QUANTIZE}         \
       -DMACE_ENABLE_OPENCL=${MACE_ENABLE_OPENCL}             \
-      -DMACE_ENABLE_BFLOAT16=ON           \
+      -DMACE_ENABLE_BFLOAT16=${DMACE_ENABLE_BFLOAT16}        \
       -DMACE_ENABLE_OPT_SIZE=ON           \
       -DMACE_ENABLE_OBFUSCATE=ON          \
       -DMACE_ENABLE_TESTS=ON              \
@@ -32,5 +42,5 @@ cmake -DCROSSTOOL_ROOT=${LINARO_AARCH64_LINUX_GNU} \
       -DMACE_ENABLE_CODE_MODE=${MACE_ENABLE_CODE_MODE}       \
       -DCMAKE_INSTALL_PREFIX=install      \
       ../../..
-make -j6 VERBOSE=1 && make install
+make -j$(nproc) VERBOSE=1 && make install
 cd ../../..

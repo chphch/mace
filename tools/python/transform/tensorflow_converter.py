@@ -70,6 +70,7 @@ TFSupportedOps = [
     'DepthwiseConv2dNative',
     'DepthToSpace',
     'Div',
+    'Elu',
     'Equal',
     'ExpandDims',
     'ExtractImagePatches',
@@ -78,6 +79,8 @@ TFSupportedOps = [
     'Fill',
     'FloorDiv',
     'FusedBatchNorm',
+    'FusedBatchNormV2',
+    'FusedBatchNormV3',
     'Gather',
     'GatherV2',
     'Identity',
@@ -188,6 +191,7 @@ class TensorflowConverter(base_converter.ConverterInterface):
     }
 
     activation_type = {
+        TFOpType.Elu.name: ActivationType.ELU,
         TFOpType.Relu.name: ActivationType.RELU,
         TFOpType.Relu6.name: ActivationType.RELUX,
         TFOpType.Tanh.name: ActivationType.TANH,
@@ -230,6 +234,7 @@ class TensorflowConverter(base_converter.ConverterInterface):
             TFOpType.DepthwiseConv2dNative.name: self.convert_conv2d,
             TFOpType.DepthToSpace.name: self.convert_space_depth,
             TFOpType.Div.name: self.convert_elementwise,
+            TFOpType.Elu.name: self.convert_activation,
             TFOpType.Equal.name: self.convert_elementwise,
             TFOpType.ExpandDims.name: self.convert_expand_dims,
             TFOpType.ExtractImagePatches.name:
@@ -239,6 +244,8 @@ class TensorflowConverter(base_converter.ConverterInterface):
             TFOpType.Fill.name: self.convert_fill,
             TFOpType.FloorDiv.name: self.convert_elementwise,
             TFOpType.FusedBatchNorm.name: self.convert_fused_batchnorm,
+            TFOpType.FusedBatchNormV2.name: self.convert_fused_batchnorm,
+            TFOpType.FusedBatchNormV3.name: self.convert_fused_batchnorm,
             TFOpType.Gather.name: self.convert_gather,
             TFOpType.GatherV2.name: self.convert_gather,
             TFOpType.Identity.name: self.convert_identity,
@@ -299,6 +306,8 @@ class TensorflowConverter(base_converter.ConverterInterface):
         self._mace_net_def = mace_pb2.NetDef()
         ConverterUtil.set_filter_format(self._mace_net_def, DataFormat.HWIO)
         ConverterUtil.add_data_format_arg(self._mace_net_def, DataFormat.NHWC)
+        ConverterUtil.set_framework_type(
+            self._mace_net_def, FrameworkType.TENSORFLOW.value)
 
         # import tensorflow graph
         tf_graph_def = tf.GraphDef()
@@ -583,33 +592,38 @@ class TensorflowConverter(base_converter.ConverterInterface):
                         EltwiseType.SUM, EltwiseType.PROD,
                         EltwiseType.MAX, EltwiseType.MIN]
 
-                if (len(tf_op.inputs) > 1 and
-                        len(self.infer_tensor_shape(tf_op.inputs[1])) == 0 and
-                        tf_op.inputs[1].op.type == TFOpType.Const.name):
-                    scalar = tf_op.inputs[1].eval().astype(np.float32)
-                    value_arg = op.arg.add()
-                    value_arg.name = MaceKeyword.mace_scalar_input_str
-                    value_arg.f = scalar
-                    self._skip_tensor.add(tf_op.inputs[1].name)
-                    value_index_arg = op.arg.add()
-                    value_index_arg.name = \
-                        MaceKeyword.mace_scalar_input_index_str
-                    value_index_arg.i = 1
-                    self._skip_tensor.add(tf_op.inputs[1].name)
-                    del op.input[1]
-                elif len(self.infer_tensor_shape(tf_op.inputs[0])) == 0 and \
-                        tf_op.inputs[0].op.type == TFOpType.Const.name and \
-                        is_commutative(type_arg.i):
-                    scalar = tf_op.inputs[0].eval().astype(np.float32)
-                    value_arg = op.arg.add()
-                    value_arg.name = MaceKeyword.mace_scalar_input_str
-                    value_arg.f = scalar
-                    value_index_arg = op.arg.add()
-                    value_index_arg.name = \
-                        MaceKeyword.mace_scalar_input_index_str
-                    value_index_arg.i = 0
-                    self._skip_tensor.add(tf_op.inputs[0].name)
-                    del op.input[0]
+                if len(tf_op.inputs) > 1:
+                    shape = self.infer_tensor_shape(tf_op.inputs[1])
+                    if (len(shape) == 0 or
+                            (len(shape) == 1 and shape[0] == 1)) and \
+                            tf_op.inputs[1].op.type == TFOpType.Const.name:
+                        scalar = tf_op.inputs[1].eval().astype(np.float32)
+                        value_arg = op.arg.add()
+                        value_arg.name = MaceKeyword.mace_scalar_input_str
+                        value_arg.f = scalar
+                        self._skip_tensor.add(tf_op.inputs[1].name)
+                        value_index_arg = op.arg.add()
+                        value_index_arg.name = \
+                            MaceKeyword.mace_scalar_input_index_str
+                        value_index_arg.i = 1
+                        self._skip_tensor.add(tf_op.inputs[1].name)
+                        del op.input[1]
+                else:
+                    shape = self.infer_tensor_shape(tf_op.inputs[0])
+                    if (len(shape) == 0 or
+                            (len(shape) == 1 and shape[0] == 1)) and \
+                            is_commutative(type_arg.i) and \
+                            tf_op.inputs[0].op.type == TFOpType.Const.name:
+                        scalar = tf_op.inputs[0].eval().astype(np.float32)
+                        value_arg = op.arg.add()
+                        value_arg.name = MaceKeyword.mace_scalar_input_str
+                        value_arg.f = scalar
+                        value_index_arg = op.arg.add()
+                        value_index_arg.name = \
+                            MaceKeyword.mace_scalar_input_index_str
+                        value_index_arg.i = 0
+                        self._skip_tensor.add(tf_op.inputs[0].name)
+                        del op.input[0]
             except tf.errors.InvalidArgumentError:
                 pass
 
@@ -659,11 +673,18 @@ class TensorflowConverter(base_converter.ConverterInterface):
             limit_arg = op.arg.add()
             limit_arg.name = MaceKeyword.mace_activation_max_limit_str
             limit_arg.f = 6.0
-        elif tf_op.type == TFOpType.LeakyRelu.name:
+        elif tf_op.type == TFOpType.LeakyRelu.name or \
+                tf_op.type == TFOpType.Elu.name:
             alpha_arg = op.arg.add()
             alpha_arg.name = \
-                MaceKeyword.mace_activation_leakyrelu_coefficient_str
-            alpha_arg.f = tf_op.get_attr(tf_alpha_str)
+                MaceKeyword.mace_activation_coefficient_str
+            try:
+                alpha_arg.f = tf_op.get_attr(tf_alpha_str)
+            except ValueError:
+                if tf_op.type == TFOpType.LeakyRelu.name:
+                    alpha_arg.f = 0.0
+                else:
+                    alpha_arg.f = 1.0
 
     def convert_fill(self, tf_op):
         op = self.convert_general_op(tf_op)

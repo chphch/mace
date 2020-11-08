@@ -19,6 +19,7 @@ from py_proto import mace_pb2
 
 from utils.config_parser import DataFormat
 from utils.config_parser import DeviceType
+from utils.config_parser import Platform
 
 
 # SAME_LOWER: if the amount of paddings to be added is odd,
@@ -49,6 +50,7 @@ class ActivationType(Enum):
     TANH = 4
     SIGMOID = 5
     LEAKYRELU = 6
+    ELU = 7
 
 
 class EltwiseType(Enum):
@@ -87,6 +89,8 @@ class FrameworkType(Enum):
     CAFFE = 1
     ONNX = 2
     MEGENGINE = 3
+    KERAS = 4
+    PYTORCH = 5
 
 
 MaceSupportedOps = [
@@ -221,7 +225,7 @@ class MaceKeyword(object):
     mace_element_type_str = 'type'
     mace_activation_type_str = 'activation'
     mace_activation_max_limit_str = 'max_limit'
-    mace_activation_leakyrelu_coefficient_str = 'leakyrelu_coefficient'
+    mace_activation_coefficient_str = 'activation_coefficient'
     mace_resize_size_str = 'size'
     mace_batch_to_space_crops_str = 'crops'
     mace_paddings_str = 'paddings'
@@ -292,6 +296,7 @@ class MaceKeyword(object):
     mace_across_ch_str = 'across_channels'
     mace_apu_16bit_per_tensor = 'mace_apu_16bit_per_tensor'
     mace_apu_data_type_arg_str = 'apu_data_type'
+    mace_int8 = 'int8'
 
 
 class TransformerRule(Enum):
@@ -342,6 +347,8 @@ class TransformerRule(Enum):
     TRANSFORM_SINGLE_BN_TO_DEPTHWISE_CONV = 45
     TRANSFORM_MUL_MAX_TO_PRELU = 46
     TRANSFORM_EXPAND_DIMS_TO_RESHAPE = 47
+    QUANTIZE_FOLD_RELU = 48
+    TRANSFORM_KERAS_QUANTIZE_INFO = 49
 
 
 class ConverterInterface(object):
@@ -423,6 +430,7 @@ class ConverterOption(object):
         self._transformer_option = None
         self._cl_mem_type = "image"
         self._quantize_stat = False
+        self._platform = None
 
     @property
     def input_nodes(self):
@@ -479,6 +487,10 @@ class ConverterOption(object):
     @property
     def quantize_stat(self):
         return self._quantize_stat
+
+    @property
+    def platform(self):
+        return self._platform
 
     @input_nodes.setter
     def input_nodes(self, input_nodes):
@@ -548,6 +560,10 @@ class ConverterOption(object):
     def quantize_stat(self, quantize_stat):
         self._quantize_stat = quantize_stat
 
+    @platform.setter
+    def platform(self, platform):
+        self._platform = platform
+
     def disable_transpose_filters(self):
         if TransformerRule.TRANSPOSE_FILTERS in self._transformer_option:
             self._transformer_option.remove(TransformerRule.TRANSPOSE_FILTERS)
@@ -607,7 +623,7 @@ class ConverterOption(object):
                 TransformerRule.UPDATE_DATA_FORMAT,
                 TransformerRule.TRANSPOSE_DATA_FORMAT,
                 # Need to be put after SORT_BY_EXECUTION
-                TransformerRule.ADD_QUANTIZE_TENSOR_RANGE,
+                TransformerRule.ADD_QUANTIZE_TENSOR_RANGE
             ]
             if self._device == DeviceType.APU.value:
                 self._transformer_option = self._transformer_option + [
@@ -622,11 +638,17 @@ class ConverterOption(object):
             if self._quantize:
                 self._transformer_option = self._transformer_option + [
                     # need to be put after ADD_QUANTIZE_TENSOR_RANGE
+                    TransformerRule.QUANTIZE_FOLD_RELU,
                     TransformerRule.QUANTIZE_NODES,
                     TransformerRule.QUANTIZE_WEIGHTS,
                     TransformerRule.SORT_BY_EXECUTION,
                     TransformerRule.CHECK_QUANTIZE_INFO,
                 ]
+
+                if self._platform == Platform.KERAS:
+                    self._transformer_option = [
+                        TransformerRule.TRANSFORM_KERAS_QUANTIZE_INFO
+                    ] + self._transformer_option
 
 
 class ConverterUtil(object):
@@ -692,3 +714,17 @@ class ConverterUtil(object):
             return DataFormat.OIHW
         else:
             return None
+
+    @staticmethod
+    def set_framework_type(net, framework_type):
+        framework_type_arg = net.arg.add()
+        framework_type_arg.name = MaceKeyword.mace_framework_type_str
+        framework_type_arg.i = framework_type
+
+    @staticmethod
+    def framework_type(net):
+        framework_type_arg = ConverterUtil.get_arg(
+            net, MaceKeyword.mace_framework_type_str)
+        if framework_type_arg is None:
+            return None
+        return framework_type_arg.i

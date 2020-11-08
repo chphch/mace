@@ -81,7 +81,7 @@ void Activation<T>::DoActivation(const OpContext *context,
       for (index_t i = 0; i < size; ++i) {
         *output_ptr =
             std::max<float>(*input_ptr, 0.f)
-                + std::min(*input_ptr, 0.f) * leakyrelu_coefficient_;
+                + std::min(*input_ptr, 0.f) * activation_coefficient_;
         ++input_ptr;
         ++output_ptr;
       }
@@ -104,6 +104,19 @@ void Activation<T>::DoActivation(const OpContext *context,
       break;
     }
 
+    case ELU: {
+      for (index_t i = 0; i < input->size(); ++i) {
+        const auto in_val = *input_ptr++;
+        if (in_val < 0) {
+          *output_ptr = (std::exp(in_val) - 1) * activation_coefficient_;
+        } else {
+          *output_ptr = in_val;
+        }
+        output_ptr++;
+      }
+      break;
+    }
+
     case NOOP:break;
 
     default:MACE_NOT_IMPLEMENTED;
@@ -117,6 +130,10 @@ void RegisterActivationDelegator(OpDelegatorRegistry *registry) {
   MACE_REGISTER_BF16_DELEGATOR(
       registry, Activation<BFloat16>, delegator::ActivationParam,
       MACE_DELEGATOR_KEY(Activation, DeviceType::CPU, BFloat16, ImplType::REF));
+  MACE_REGISTER_FP16_DELEGATOR(
+      registry, Activation<float16_t>, delegator::ActivationParam,
+      MACE_DELEGATOR_KEY(Activation, DeviceType::CPU,
+                         float16_t, ImplType::REF));
 }
 
 }  // namespace ref

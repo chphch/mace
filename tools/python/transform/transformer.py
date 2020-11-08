@@ -33,6 +33,7 @@ from transform.base_converter import MaceTransposableDataFormatOps  # noqa
 from transform.base_converter import PaddingMode
 from transform.base_converter import ReduceType
 from transform.base_converter import TransformerRule
+from utils.config_parser import Platform
 from quantize import quantize_util
 from utils.util import mace_check
 
@@ -121,6 +122,10 @@ class Transformer(base_converter.ConverterInterface):
                 self.transform_mul_max_to_prelu,
             TransformerRule.TRANSFORM_EXPAND_DIMS_TO_RESHAPE:
                 self.transform_expand_dims_to_reshape,
+            TransformerRule.QUANTIZE_FOLD_RELU:
+                self.quantize_fold_relu,
+            TransformerRule.TRANSFORM_KERAS_QUANTIZE_INFO:
+                self.transform_keras_quantize_info
         }
 
         self._option = option
@@ -345,6 +350,7 @@ class Transformer(base_converter.ConverterInterface):
             input_info.dims.extend(input_node.shape)
             input_info.data_type = input_node.data_type
 
+        # tools/python/convert.py sets option.check_nodes
         output_nodes = self._option.check_nodes.values()
         for output_node in output_nodes:
             output_info = net.output_info.add()
@@ -866,7 +872,10 @@ class Transformer(base_converter.ConverterInterface):
         for op in net.op:
             if (((op.type == MaceOp.Conv2D.name
                   or op.type == MaceOp.DepthwiseConv2d.name
-                  or op.type == MaceOp.FullyConnected.name)
+                  or op.type == MaceOp.FullyConnected.name
+                  or (op.type == MaceOp.MatMul.name
+                      and self._option.device == DeviceType.CPU.value
+                      and not self._option.quantize))
                  and len(op.input) == 2)
                 or (op.type == MaceOp.Deconv2D.name
                     and ((ConverterUtil.get_arg(
@@ -990,7 +999,7 @@ class Transformer(base_converter.ConverterInterface):
                         if arg.name == MaceKeyword.mace_activation_type_str \
                                 or arg.name == \
                                     MaceKeyword.mace_activation_max_limit_str \
-                                or arg.name == MaceKeyword.mace_activation_leakyrelu_coefficient_str:  # noqa
+                                or arg.name == MaceKeyword.mace_activation_coefficient_str:  # noqa
                             op.arg.extend([arg])
 
                     self.replace_quantize_info(op, consumer_op)
@@ -1003,7 +1012,7 @@ class Transformer(base_converter.ConverterInterface):
         """Transform global conv to fc should be placed after transposing
         input/output and filter"""
 
-        if self._option.quantize:
+        if self._option.quantize or self._option.platform == Platform.KERAS:
             return
 
         net = self._model
@@ -1112,9 +1121,10 @@ class Transformer(base_converter.ConverterInterface):
         transposed_filter = set()
         transposed_deconv_filter = set()
 
-        if ((self._option.quantize and
+        if (((self._option.quantize and
                 self._option.device == DeviceType.CPU.value) or
-                self._option.device == DeviceType.APU.value):
+                self._option.device == DeviceType.APU.value) and
+                (not self._option.quantize_schema == MaceKeyword.mace_int8)):
             print("Transpose filters to OHWI")
             if filter_format == DataFormat.HWIO:
                 transpose_order = [3, 0, 1, 2]
@@ -1303,18 +1313,27 @@ class Transformer(base_converter.ConverterInterface):
         return False
 
     def transform_matmul_to_fc(self):
+        if self._option.platform == Platform.KERAS:
+            return
+
         net = self._model
         filter_format = self.filter_format()
         for op in net.op:
             # transform `input(4D) -> reshape(2D) -> matmul` to `fc(2D)`
             # fc output is 2D in transformer, using as 4D in op kernel
-            # work for TensorFlow
+            # work for TensorFlow/PyTorch/ONNX
+            framework = ConverterUtil.framework_type(net)
+            is_torch = framework == FrameworkType.PYTORCH.value
+            is_tf = framework == FrameworkType.TENSORFLOW.value
+            is_onnx = framework == FrameworkType.ONNX.value
+
             if op.type == MaceOp.Reshape.name and \
                     len(op.input) == 2 and \
                     op.input[1] in self._consts and \
                     len(op.output_shape[0].dims) == 2 and \
-                    filter_format == DataFormat.HWIO and \
-                    op.input[0] in self._producer:
+                    (is_tf or is_torch or is_onnx) and \
+                    op.input[0] in self._producer and \
+                    op.output[0] in self._consumers:
                 input_op = self._producer[op.input[0]]
                 input_shape = input_op.output_shape[0].dims
                 # check input op
@@ -1328,8 +1347,13 @@ class Transformer(base_converter.ConverterInterface):
                             is_fc = False
                         else:
                             weight = self._consts[matmul_op.input[1]]
-                            if len(weight.dims) != 2 or \
-                               weight.dims[0] != op.output_shape[0].dims[1]:
+                            od = op.output_shape[0].dims
+                            wd = weight.dims
+                            if len(wd) != 2:
+                                is_fc = False
+                            # tf fc weight: IO; onnx/pytorch fc weight: OI
+                            if (is_tf and wd[0] != od[1]) or \
+                                    ((is_torch or is_onnx) and wd[1] != od[1]):
                                 is_fc = False
                     if is_fc:
                         print('convert reshape and matmul to fc')
@@ -1340,24 +1364,40 @@ class Transformer(base_converter.ConverterInterface):
                             matmul_op.type = MaceOp.FullyConnected.name
                             weight_data = np.array(weight.float_data).reshape(
                                 weight.dims)
-                            weight.dims[:] = input_shape[1:] + \
-                                [weight_data.shape[1]]
+                            if is_tf:
+                                weight.dims[:] = input_shape[1:] + \
+                                    [weight_data.shape[1]]
+                            if is_torch or is_onnx:
+                                in_data_format = ConverterUtil.data_format(
+                                    input_op)
+                                # OI+NCHW[2:]=OIHW
+                                if in_data_format == DataFormat.NCHW:
+                                    weight.dims.extend(input_shape[2:])
+                                # OI+NHWC[1:3]=OIHW
+                                else:
+                                    weight.dims.extend(input_shape[1:3])
                         return True
 
             # transform `fc1(2D) -> matmul` to `fc1(2D) -> fc1(2D)`
             if op.type == MaceOp.MatMul.name and \
-                    filter_format == DataFormat.HWIO and \
+                    (is_tf or is_torch or is_onnx) and \
                     op.input[1] in self._consts:
                 producer = self._producer[op.input[0]]
                 weight = self._consts[op.input[1]]
                 if len(weight.dims) == 2 and self.is_after_fc(op) and \
                         len(producer.output_shape[0].dims) == 2 and \
-                        weight.dims[0] == producer.output_shape[0].dims[1]:
+                        ((is_tf and weight.dims[0] == producer.output_shape[0].dims[1]) or  # noqa
+                         (is_torch and weight.dims[1] == producer.output_shape[0].dims[1]) or  # noqa
+                         (is_onnx and weight.dims[1] == producer.output_shape[0].dims[1])):  # noqa
                     six.print_('convert matmul to fc')
                     op.type = MaceOp.FullyConnected.name
                     weight_data = np.array(weight.float_data).reshape(
                         weight.dims)
-                    weight.dims[:] = [1, 1] + list(weight_data.shape)
+                    # only 1 of the 2 branches can be executed
+                    if is_tf:
+                        weight.dims[:] = [1, 1] + list(weight_data.shape)
+                    if is_torch or is_onnx:
+                        weight.dims.extend([1, 1])
                     return True
 
             if self._option.device == DeviceType.APU.value:
@@ -1667,6 +1707,8 @@ class Transformer(base_converter.ConverterInterface):
                 if self._option.quantize_schema == \
                         MaceKeyword.mace_apu_16bit_per_tensor:
                     data_type_arg.i = mace_pb2.DT_INT16
+                elif self._option.quantize_schema == MaceKeyword.mace_int8:
+                    data_type_arg.i = mace_pb2.DT_INT8
                 else:
                     data_type_arg.i = mace_pb2.DT_UINT8
             elif data_type_arg.i == mace_pb2.DT_UINT8:
@@ -1680,6 +1722,13 @@ class Transformer(base_converter.ConverterInterface):
                 mace_check(op.type == MaceOp.Quantize.name
                            or op.type == MaceOp.Dequantize.name,
                            "Only Quantization ops support int16, "
+                           "but got %s(%s)" % (op.name, op.type))
+            elif data_type_arg.i == mace_pb2.DT_INT8 \
+                and self._option.quantize_schema == \
+                    MaceKeyword.mace_int8:
+                mace_check(op.type == MaceOp.Quantize.name
+                           or op.type == MaceOp.Dequantize.name,
+                           "Only Quantization ops support int8, "
                            "but got %s(%s)" % (op.name, op.type))
             else:
                 mace_check(op.type == MaceOp.Quantize.name,
@@ -1705,6 +1754,8 @@ class Transformer(base_converter.ConverterInterface):
             if self._option.quantize_schema == \
                     MaceKeyword.mace_apu_16bit_per_tensor:
                 ConverterUtil.add_data_type_arg(op_def, mace_pb2.DT_INT16)
+            elif self._option.quantize_schema == MaceKeyword.mace_int8:
+                ConverterUtil.add_data_type_arg(op_def, mace_pb2.DT_INT8)
             else:
                 ConverterUtil.add_data_type_arg(op_def, mace_pb2.DT_UINT8)
             ConverterUtil.add_data_format_arg(op_def, input_node.data_format)
@@ -1732,6 +1783,8 @@ class Transformer(base_converter.ConverterInterface):
             if self._option.quantize_schema == \
                     MaceKeyword.mace_apu_16bit_per_tensor:
                 ConverterUtil.add_data_type_arg(op_def, mace_pb2.DT_INT16)
+            elif self._option.quantize_schema == MaceKeyword.mace_int8:
+                ConverterUtil.add_data_type_arg(op_def, mace_pb2.DT_INT8)
             else:
                 ConverterUtil.add_data_type_arg(op_def, mace_pb2.DT_UINT8)
             ConverterUtil.add_data_format_arg(op_def, output_node.data_format)
@@ -1753,7 +1806,8 @@ class Transformer(base_converter.ConverterInterface):
                     check_conv =\
                         ops[0].type in [MaceOp.Conv2D.name,
                                         MaceOp.DepthwiseConv2d.name,
-                                        MaceOp.FullyConnected.name]\
+                                        MaceOp.FullyConnected.name,
+                                        MaceOp.MatMul.name]\
                         and ops[0].input[2] == tensor.name
                 # in tensorflow deconv's bias is the forth input
                 if ops[0].type in [MaceOp.Deconv2D.name,
@@ -1793,6 +1847,10 @@ class Transformer(base_converter.ConverterInterface):
                 quantized_tensor = \
                     quantize_util.quantize_int16(tensor.float_data)
                 tensor.data_type = mace_pb2.DT_INT16
+            elif self._option.quantize_schema == MaceKeyword.mace_int8:
+                quantized_tensor = quantize_util.quantize_int8(
+                    tensor.float_data)
+                tensor.data_type = mace_pb2.DT_INT8
             else:
                 non_zero = self._option.device == DeviceType.CPU.value
                 quantized_tensor = quantize_util.quantize(tensor.float_data,
@@ -1855,6 +1913,9 @@ class Transformer(base_converter.ConverterInterface):
             minval = -maxval
             scale = maxval / 2**15
             zero = 0
+        elif quantize_schema == MaceKeyword.mace_int8:
+            scale, zero, minval, maxval = quantize_util.adjust_range_int8(
+                minval, maxval)
         else:
             scale, zero, minval, maxval = \
                 quantize_util.adjust_range(minval, maxval, self._option.device,
@@ -1966,6 +2027,9 @@ class Transformer(base_converter.ConverterInterface):
                         min_val = -max_val
                         scale = max_val / 2**15
                         zero = 0
+                    elif quantize_schema == MaceKeyword.mace_int8:
+                        scale, zero, min_val, max_val = \
+                            quantize_util.adjust_range_int8(min_val, max_val)
                     else:
                         scale, zero, min_val, max_val = \
                             quantize_util.adjust_range(min_val, max_val,
@@ -2007,6 +2071,10 @@ class Transformer(base_converter.ConverterInterface):
                     minval = -maxval
                     scale = maxval / 2**15
                     zero = 0
+                elif quantize_schema == MaceKeyword.mace_int8:
+                    scale, zero, minval, maxval = \
+                        quantize_util.adjust_range_int8(
+                            input_node.range[0], input_node.range[1])
                 else:
                     scale, zero, minval, maxval = \
                         quantize_util.adjust_range(input_node.range[0],
@@ -2036,7 +2104,8 @@ class Transformer(base_converter.ConverterInterface):
                            MaceOp.BatchToSpaceND.name,
                            MaceOp.SpaceToBatchND.name,
                            MaceOp.SpaceToDepth.name,
-                           MaceOp.DepthToSpace.name]:
+                           MaceOp.DepthToSpace.name,
+                           MaceOp.Transpose.name]:
                 del op.quantize_info[:]
                 producer_op = self._producer[op.input[0]]
                 if producer_op.output[0] in self._option.input_nodes:
@@ -2251,7 +2320,7 @@ class Transformer(base_converter.ConverterInterface):
             dim_arg = ConverterUtil.get_arg(op, MaceKeyword.mace_dim_str)
             shape_tensor = None
             if len(op.input) == 1:
-                print("Transform Caffe Reshape")
+                print("Transform Caffe or PyTorch Reshape")
                 dims = []
                 axis_arg = ConverterUtil.get_arg(op, MaceKeyword.mace_axis_str)
                 # transform caffe reshape op
@@ -2583,3 +2652,38 @@ class Transformer(base_converter.ConverterInterface):
                 del op.arg[:]
                 return True
         return False
+
+    def quantize_fold_relu(self):
+        if self._option.quantize_schema != MaceKeyword.mace_int8:
+            return
+
+        net = self._model
+
+        for op in net.op:
+            if op.type == MaceOp.Activation.name:
+                act_type_arg = ConverterUtil.get_arg(
+                    op, MaceKeyword.mace_activation_type_str)
+                act_type = act_type_arg.s.decode()
+
+                if act_type in ["RELU", "RELUX"]:
+                    producer = self._producer[op.input[0]]
+                    # The type of "producer" is not limited to MatMul,
+                    # you can try other types
+                    if producer.type == MaceOp.MatMul.name:
+                        self.replace_quantize_info(producer, op)
+                        self.safe_remove_node(op, producer)
+                        return True
+
+        return False
+
+    def transform_keras_quantize_info(self):
+        mace_check(self._option.platform == Platform.KERAS, "For KERAS models")
+        changed = False
+        for op in self._model.op:
+            for i in range(len(op.quantize_info)):
+                if not op.output[i] in self._quantize_activation_info:
+                    self._quantize_activation_info[op.output[i]] = \
+                        op.quantize_info[i]
+                    changed = True
+
+        return changed

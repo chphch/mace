@@ -67,15 +67,24 @@ void ReluBenchmark(int iters, int batch, int channels, int height, int width) {
   }                                                                          \
   MACE_BENCHMARK(MACE_BM_RELU_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE)
 
+#ifdef MACE_ENABLE_BFLOAT16
+#define MACE_BM_RELU_BF16_MACRO(N, C, H, W)      \
+  MACE_BM_RELU_MACRO(N, C, H, W, BFloat16, CPU)
+#else
+#define MACE_BM_RELU_BF16_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_BFLOAT16
 #ifdef MACE_ENABLE_OPENCL
-#define MACE_BM_RELU(N, C, H, W)              \
-  MACE_BM_RELU_MACRO(N, C, H, W, float, CPU); \
-  MACE_BM_RELU_MACRO(N, C, H, W, float, GPU); \
+#define MACE_BM_RELU_GPU_MACRO(N, C, H, W)       \
+  MACE_BM_RELU_MACRO(N, C, H, W, float, GPU);    \
   MACE_BM_RELU_MACRO(N, C, H, W, half, GPU)
 #else
-#define MACE_BM_RELU(N, C, H, W)              \
-  MACE_BM_RELU_MACRO(N, C, H, W, float, CPU)
-#endif
+#define MACE_BM_RELU_GPU_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_OPENCL
+
+#define MACE_BM_RELU(N, C, H, W)                 \
+  MACE_BM_RELU_MACRO(N, C, H, W, float, CPU);    \
+  MACE_BM_RELU_BF16_MACRO(N, C, H, W);           \
+  MACE_BM_RELU_GPU_MACRO(N, C, H, W)
 
 MACE_BM_RELU(1, 1, 512, 512);
 MACE_BM_RELU(1, 3, 128, 128);
@@ -128,15 +137,24 @@ void ReluxBenchmark(int iters, int batch, int channels, int height, int width) {
   }                                                                           \
   MACE_BENCHMARK(MACE_BM_RELUX_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE)
 
+#ifdef MACE_ENABLE_BFLOAT16
+#define MACE_BM_RELUX_BF16_MACRO(N, C, H, W)      \
+  MACE_BM_RELUX_MACRO(N, C, H, W, BFloat16, CPU)
+#else
+#define MACE_BM_RELUX_BF16_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_BFLOAT16
 #ifdef MACE_ENABLE_OPENCL
-#define MACE_BM_RELUX(N, C, H, W)              \
-  MACE_BM_RELUX_MACRO(N, C, H, W, float, CPU); \
-  MACE_BM_RELUX_MACRO(N, C, H, W, float, GPU); \
+#define MACE_BM_RELUX_GPU_MACRO(N, C, H, W)       \
+  MACE_BM_RELUX_MACRO(N, C, H, W, float, GPU);    \
   MACE_BM_RELUX_MACRO(N, C, H, W, half, GPU)
 #else
-#define MACE_BM_RELUX(N, C, H, W)              \
-  MACE_BM_RELUX_MACRO(N, C, H, W, float, CPU)
-#endif
+#define MACE_BM_RELUX_GPU_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_OPENCL
+
+#define MACE_BM_RELUX(N, C, H, W)                 \
+  MACE_BM_RELUX_MACRO(N, C, H, W, float, CPU);    \
+  MACE_BM_RELUX_BF16_MACRO(N, C, H, W);           \
+  MACE_BM_RELUX_GPU_MACRO(N, C, H, W)
 
 MACE_BM_RELUX(1, 1, 512, 512);
 MACE_BM_RELUX(1, 3, 128, 128);
@@ -192,21 +210,94 @@ void PreluBenchmark(int iters, int batch, int channels, int height, int width) {
   }                                                                           \
   MACE_BENCHMARK(MACE_BM_PRELU_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE)
 
+#ifdef MACE_ENABLE_BFLOAT16
+#define MACE_BM_PRELU_BF16_MACRO(N, C, H, W)      \
+  MACE_BM_PRELU_MACRO(N, C, H, W, BFloat16, CPU)
+#else
+#define MACE_BM_PRELU_BF16_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_BFLOAT16
 #ifdef MACE_ENABLE_OPENCL
-#define MACE_BM_PRELU(N, C, H, W)              \
-  MACE_BM_PRELU_MACRO(N, C, H, W, float, CPU); \
-  MACE_BM_PRELU_MACRO(N, C, H, W, float, GPU); \
+#define MACE_BM_PRELU_GPU_MACRO(N, C, H, W)       \
+  MACE_BM_PRELU_MACRO(N, C, H, W, float, GPU);    \
   MACE_BM_PRELU_MACRO(N, C, H, W, half, GPU)
 #else
-#define MACE_BM_PRELU(N, C, H, W)              \
-  MACE_BM_PRELU_MACRO(N, C, H, W, float, CPU)
-#endif
+#define MACE_BM_PRELU_GPU_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_OPENCL
+
+#define MACE_BM_PRELU(N, C, H, W)                 \
+  MACE_BM_PRELU_MACRO(N, C, H, W, float, CPU);    \
+  MACE_BM_PRELU_BF16_MACRO(N, C, H, W);           \
+  MACE_BM_PRELU_GPU_MACRO(N, C, H, W)
 
 MACE_BM_PRELU(1, 1, 512, 512);
 MACE_BM_PRELU(1, 3, 128, 128);
 MACE_BM_PRELU(1, 3, 512, 512);
 MACE_BM_PRELU(1, 32, 112, 112);
 MACE_BM_PRELU(1, 64, 256, 256);
+
+namespace {
+template <DeviceType D, typename T>
+void EluBenchmark(int iters, int batch, int channels, int height, int width) {
+  mace::testing::StopTiming();
+
+  OpsTestNet net;
+
+  // Add input data
+  if (D == DeviceType::CPU) {
+    net.AddRandomInput<D, T>("Input", {batch, channels, height, width});
+  } else if (D == DeviceType::GPU) {
+    net.AddRandomInput<D, T>("Input", {batch, height, width, channels});
+  } else {
+    MACE_NOT_IMPLEMENTED;
+  }
+
+  OpDefBuilder("Activation", "EluBM")
+      .Input("Input")
+      .Output("Output")
+      .AddStringArg("activation", "ELU")
+      .AddFloatArg("activation_coefficient", 1.0)
+      .AddIntArg("T", static_cast<int>(DataTypeToEnum<T>::value))
+
+      .Finalize(net.NewOperatorDef());
+
+  // Warm-up
+  for (int i = 0; i < 5; ++i) {
+    net.RunOp(D);
+  }
+  net.Sync();
+
+  mace::testing::StartTiming();
+  while (iters--) {
+    net.RunOp(D);
+  }
+  net.Sync();
+}
+}  // namespace
+
+#define MACE_BM_ELU_MACRO(N, C, H, W, TYPE, DEVICE)                           \
+  static void MACE_BM_ELU_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE(          \
+      int iters) {                                                            \
+    const int64_t tot = static_cast<int64_t>(iters) * N * C * H * W;          \
+    mace::testing::BytesProcessed(tot *(sizeof(TYPE)));                       \
+    EluBenchmark<DEVICE, TYPE>(iters, N, C, H, W);                            \
+  }                                                                           \
+  MACE_BENCHMARK(MACE_BM_ELU_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE)
+
+#ifdef MACE_ENABLE_OPENCL
+#define MACE_BM_ELU(N, C, H, W)              \
+  MACE_BM_ELU_MACRO(N, C, H, W, float, CPU); \
+  MACE_BM_ELU_MACRO(N, C, H, W, float, GPU); \
+  MACE_BM_ELU_MACRO(N, C, H, W, half, GPU)
+#else
+#define MACE_BM_ELU(N, C, H, W)              \
+  MACE_BM_ELU_MACRO(N, C, H, W, float, CPU)
+#endif
+
+MACE_BM_ELU(1, 1, 512, 512);
+MACE_BM_ELU(1, 3, 128, 128);
+MACE_BM_ELU(1, 3, 512, 512);
+MACE_BM_ELU(1, 32, 112, 112);
+MACE_BM_ELU(1, 64, 256, 256);
 
 namespace {
 template <DeviceType D, typename T>
@@ -252,15 +343,24 @@ void TanhBenchmark(int iters, int batch, int channels, int height, int width) {
   }                                                                          \
   MACE_BENCHMARK(MACE_BM_TANH_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE)
 
+#ifdef MACE_ENABLE_BFLOAT16
+#define MACE_BM_TANH_BF16_MACRO(N, C, H, W)      \
+  MACE_BM_TANH_MACRO(N, C, H, W, BFloat16, CPU)
+#else
+#define MACE_BM_TANH_BF16_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_BFLOAT16
 #ifdef MACE_ENABLE_OPENCL
-#define MACE_BM_TANH(N, C, H, W)              \
-  MACE_BM_TANH_MACRO(N, C, H, W, float, CPU); \
-  MACE_BM_TANH_MACRO(N, C, H, W, float, GPU); \
+#define MACE_BM_TANH_GPU_MACRO(N, C, H, W)       \
+  MACE_BM_TANH_MACRO(N, C, H, W, float, GPU);    \
   MACE_BM_TANH_MACRO(N, C, H, W, half, GPU)
 #else
-#define MACE_BM_TANH(N, C, H, W)              \
-  MACE_BM_TANH_MACRO(N, C, H, W, float, CPU)
-#endif
+#define MACE_BM_TANH_GPU_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_OPENCL
+
+#define MACE_BM_TANH(N, C, H, W)                 \
+  MACE_BM_TANH_MACRO(N, C, H, W, float, CPU);    \
+  MACE_BM_TANH_BF16_MACRO(N, C, H, W);           \
+  MACE_BM_TANH_GPU_MACRO(N, C, H, W)
 
 MACE_BM_TANH(1, 1, 512, 512);
 MACE_BM_TANH(1, 3, 128, 128);
@@ -313,15 +413,24 @@ void SigmoidBenchmark(
   }                                                                       \
   MACE_BENCHMARK(MACE_BM_SIGMOID_##N##_##C##_##H##_##W##_##TYPE##_##DEVICE)
 
+#ifdef MACE_ENABLE_BFLOAT16
+#define MACE_BM_SIGMOID_BF16_MACRO(N, C, H, W)      \
+  MACE_BM_SIGMOID_MACRO(N, C, H, W, BFloat16, CPU)
+#else
+#define MACE_BM_SIGMOID_BF16_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_BFLOAT16
 #ifdef MACE_ENABLE_OPENCL
-#define MACE_BM_SIGMOID(N, C, H, W)                 \
-  MACE_BM_SIGMOID_MACRO(N, C, H, W, float, CPU);    \
+#define MACE_BM_SIGMOID_GPU_MACRO(N, C, H, W)       \
   MACE_BM_SIGMOID_MACRO(N, C, H, W, float, GPU);    \
   MACE_BM_SIGMOID_MACRO(N, C, H, W, half, GPU)
 #else
+#define MACE_BM_SIGMOID_GPU_MACRO(N, C, H, W)
+#endif  // MACE_ENABLE_OPENCL
+
 #define MACE_BM_SIGMOID(N, C, H, W)                 \
-  MACE_BM_SIGMOID_MACRO(N, C, H, W, float, CPU)
-#endif
+  MACE_BM_SIGMOID_MACRO(N, C, H, W, float, CPU);    \
+  MACE_BM_SIGMOID_BF16_MACRO(N, C, H, W);           \
+  MACE_BM_SIGMOID_GPU_MACRO(N, C, H, W)
 
 MACE_BM_SIGMOID(1, 1, 512, 512);
 MACE_BM_SIGMOID(1, 3, 128, 128);

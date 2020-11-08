@@ -279,8 +279,7 @@ class DeviceWrapper:
                 if os.path.exists(opencl_parameter_file):
                     self.push(opencl_parameter_file, self.data_dir)
 
-            if self.system == SystemType.android \
-                    and device_type == common.DeviceType.HEXAGON:
+            if self.system == SystemType.android:
                 self.push(
                     "third_party/nnlib/%s/libhexagon_controller.so" % abi,
                     self.data_dir)
@@ -632,6 +631,9 @@ class DeviceWrapper:
                     'Run model {} on {}'.format(model_name, self.device_name)))
 
             model_config = configs[YAMLKeyword.models][model_name]
+            if model_config[YAMLKeyword.platform] == 'pytorch':
+                mace_check(flags.layers == "-1", "Device",
+                           'extracting intermediate layer output is not supported in pytorch JIT yet')  # noqa
             model_runtime = model_config[YAMLKeyword.runtime]
             subgraphs = model_config[YAMLKeyword.subgraphs]
 

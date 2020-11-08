@@ -61,6 +61,8 @@ PlatformTypeStrs = [
     "caffe",
     "onnx",
     "megengine",
+    "keras",
+    "pytorch",
 ]
 PlatformType = Enum('PlatformType', [(ele, ele) for ele in PlatformTypeStrs],
                     type=str)
@@ -87,6 +89,7 @@ FPDataTypeStrs = [
     "fp16_fp32",
     "fp32_fp32",
     "bf16_fp32",
+    "fp16_fp16",
 ]
 
 FPDataType = Enum('GPUDataType', [(ele, ele) for ele in FPDataTypeStrs],
@@ -178,6 +181,15 @@ def bfloat16_enabled(configs):
         model_config = configs[YAMLKeyword.models][model_name]
         dtype = model_config.get(YAMLKeyword.data_type, FPDataType.fp16_fp32)
         if dtype == FPDataType.bf16_fp32:
+            return True
+    return False
+
+
+def fp16_enabled(configs):
+    for model_name in configs[YAMLKeyword.models]:
+        model_config = configs[YAMLKeyword.models][model_name]
+        dtype = model_config.get(YAMLKeyword.data_type, FPDataType.fp16_fp32)
+        if dtype == FPDataType.fp16_fp16:
             return True
     return False
 
@@ -520,6 +532,13 @@ def format_model_config(flags):
                 if not isinstance(value, list):
                     subgraph[key] = [value]
                 subgraph[key] = [str(v) for v in subgraph[key]]
+# --inputs_shapes will be passed to ELF file `mace_run_static', if input_shapes
+# contains spaces, such as: '1, 3, 224, 224', because mace_run.cc use gflags to
+# parse command line arguments, --input_shapes 1, 3, 224, 224 will be passed as
+# `--input_shapes 1,'. So we strip out spaces here.
+                if key in [YAMLKeyword.input_shapes,
+                           YAMLKeyword.output_shapes]:
+                    subgraph[key] = [e.replace(' ', '') for e in subgraph[key]]
             input_size = len(subgraph[YAMLKeyword.input_tensors])
             output_size = len(subgraph[YAMLKeyword.output_tensors])
 
@@ -756,6 +775,7 @@ def build_model_lib(configs, address_sanitizer, debug_mode):
             enable_opencl=opencl_enabled(configs),
             enable_quantize=quantize_enabled(configs),
             enable_bfloat16=bfloat16_enabled(configs),
+            enable_fp16=fp16_enabled(configs),
             address_sanitizer=address_sanitizer,
             symbol_hidden=get_symbol_hidden_mode(debug_mode),
             debug_mode=debug_mode
@@ -918,6 +938,7 @@ def build_mace_run(configs, target_abi, toolchain,
         enable_opencl=opencl_enabled(configs),
         enable_quantize=quantize_enabled(configs),
         enable_bfloat16=bfloat16_enabled(configs),
+        enable_fp16=fp16_enabled(configs),
         address_sanitizer=address_sanitizer,
         symbol_hidden=get_symbol_hidden_mode(debug_mode, mace_lib_type),
         debug_mode=debug_mode,

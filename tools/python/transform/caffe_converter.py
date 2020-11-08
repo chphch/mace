@@ -166,6 +166,7 @@ class CaffeConverter(base_converter.ConverterInterface):
         'TanH': ActivationType.TANH,
         'Sigmoid': ActivationType.SIGMOID,
         'Clip': ActivationType.RELUX,
+        'ELU': ActivationType.ELU,
     }
 
     def __init__(self, option, src_model_file, src_weight_file):
@@ -181,6 +182,7 @@ class CaffeConverter(base_converter.ConverterInterface):
             'Sigmoid': self.convert_activation,
             'PReLU': self.convert_activation,
             'Clip': self.convert_activation,
+            'ELU': self.convert_activation,
             'Pooling': self.convert_pooling,
             'Concat': self.convert_concat,
             'Slice': self.convert_slice,
@@ -207,6 +209,8 @@ class CaffeConverter(base_converter.ConverterInterface):
         self._mace_net_def = mace_pb2.NetDef()
         ConverterUtil.set_filter_format(self._mace_net_def, DataFormat.OIHW)
         ConverterUtil.add_data_format_arg(self._mace_net_def, DataFormat.NCHW)
+        ConverterUtil.set_framework_type(
+            self._mace_net_def, FrameworkType.CAFFE.value)
         self._caffe_net = CaffeNet()
         self._caffe_layers = caffe_pb2.NetParameter()
         caffe_weights = caffe_pb2.NetParameter()
@@ -509,7 +513,7 @@ class CaffeConverter(base_converter.ConverterInterface):
             negative_slope = caffe_op.layer.relu_param.negative_slope
             if negative_slope != 0:
                 param_arg = op.arg.add()
-                param_arg.name = MaceKeyword.mace_activation_leakyrelu_coefficient_str  # noqa
+                param_arg.name = MaceKeyword.mace_activation_coefficient_str
                 param_arg.f = caffe_op.layer.relu_param.negative_slope
                 type_arg.s = six.b(ActivationType.LEAKYRELU.name)
         elif caffe_op.type == 'ReLU6':
@@ -522,6 +526,11 @@ class CaffeConverter(base_converter.ConverterInterface):
             limit_arg = op.arg.add()
             limit_arg.name = MaceKeyword.mace_activation_max_limit_str
             limit_arg.f = caffe_op.layer.clip_param.max
+        elif caffe_op.type == 'ELU':
+            # TODO(luxuhui): we have not verify ELU for Caffe
+            param_arg = op.arg.add()
+            param_arg.name = MaceKeyword.mace_activation_coefficient_str
+            param_arg.f = caffe_op.layer.elu_param.alpha
 
     def convert_folded_batchnorm(self, caffe_op):
         op = self.convert_general_op(caffe_op)

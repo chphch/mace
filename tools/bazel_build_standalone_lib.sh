@@ -16,23 +16,23 @@ declare -r NORMAL=$(tput sgr0)
 helper() {
   echo -e "usage:\t$0 ["${BOLD}"--abi"${NORMAL}"=abi]\
 ["${BOLD}"--runtimes"${NORMAL}"=rt1,rt2,...]["${BOLD}"--static"${NORMAL}"]"
-  
+
   echo -e "\t"${BOLD}"--abi:"${NORMAL}" specifies the targeted ABI, supported \
 ABIs are:\n\t\tarmeabi-v7a, arm64-v8a, arm_linux_gnueabihf, aarch64_linux_gnu \
 or \n\t\thost if the library is built for the host machine (linux-x86-64).\n\t\
 \tThe default ABI is arm64-v8a."
-  
+
   echo -e "\t"${BOLD}"--runtimes:"${NORMAL}" specifies the runtimes, supported \
 runtimes are:\n\t\tcpu, gpu, dsp, apu, hta. By default, the library is built to\
  run on CPU."
-  
+
   echo -e "\t"${BOLD}"--static:"${NORMAL}" option to generate the corresponding\
  static library.\n\t\tIf the option is omitted, a shared library is built."
-  
+
   exit 0
 }
 
-# configuration variables
+# default configuration variables
 abi=arm64-v8a
 enable_neon=true
 enable_hta=false
@@ -40,7 +40,8 @@ enable_cpu=true
 enable_gpu=false
 enable_dsp=false
 enable_apu=false
-enable_quantize=true
+enable_quantize=false
+enable_bfloat16=false
 enable_rpcmem=true
 static_lib=false
 symbol_hidden=
@@ -96,6 +97,12 @@ for opt in "${@}";do
     static|-static|--static)
       static_lib=true
       ;;
+    quantize|-quantize|--quantize)
+      enable_quantize=true
+      ;;
+    bfloat16|-bfloat16|--bfloat16)
+      enable_bfloat16=true
+      ;;
     help|-help|--help)
       helper
       ;;
@@ -108,7 +115,7 @@ $(echo "$1" | cut -d '=' -f -1)"
   esac
 done
 
-if [[ "${enable_apu}" == true ]];then
+if [[ "${enable_apu}" == true || "${abi}" != armeabi-v7a || "${abi}" != arm64-v8a ]];then
   enable_rpcmem=false
 fi
 
@@ -139,7 +146,8 @@ case "${abi}" in
     --config optimization mace/libmace:libmace_"${lib_type}"\
     --define neon="${enable_neon}" \
     --define opencl="${enable_gpu}" \
-    --define quantize="${enable_quantize}"
+    --define quantize="${enable_quantize}" \
+    --define bfloat16="${enable_bfloat16}"
     ;;
   linux-x86-64)
     bazel build mace/libmace:libmace_"${lib_type}" --config linux --config \
@@ -152,7 +160,8 @@ case "${abi}" in
     --define neon="${enable_neon}" --define hta="${enable_hta}" \
     --define opencl="${enable_gpu}" --define apu="${enable_apu}" \
     --define hexagon="${enable_dsp}" --define quantize="${enable_quantize}" \
-    --cpu="${abi}" --define rpcmem="${enable_rpcmem}"
+    --define rpcmem="${enable_rpcmem}" --define bfloat16="${enable_bfloat16}" \
+    --cpu="${abi}"
     if [[ "${enable_dsp}" == true ]];then
       cp third_party/nnlib/"${abi}"/libhexagon_controller.so \
       "${LIB_DIR}"/"${abi}"/
