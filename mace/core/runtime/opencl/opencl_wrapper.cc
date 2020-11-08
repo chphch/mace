@@ -304,6 +304,9 @@ bool OpenCLLibrary::Load() {
   const std::vector<std::string> paths = {
     "libOpenCL.so",
 #if defined(__aarch64__)
+    // Qualcomm Adreno with Android (Google Pixel 4)
+    "/vendor/lib64/libOpenCL-pixel.so",
+    "/vendor/lib64/libOpenCL.so",
     // Qualcomm Adreno with Android
     "/system/vendor/lib64/libOpenCL.so",
     "/system/lib64/libOpenCL.so",
