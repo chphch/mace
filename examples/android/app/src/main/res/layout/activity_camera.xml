@@ -44,4 +44,20 @@
         android:layout_margin="25dp"
         android:text="手机配置选择"/>
 
+    <Button
+        android:id="@+id/tv_select_operator_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="75dp"
+        android:layout_marginLeft="25dp"
+        android:text="Start Operator" />
+
+    <Button
+        android:id="@+id/tv_select_operator_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="125dp"
+        android:layout_marginLeft="25dp"
+        android:text="End Operator" />
+
 </FrameLayout>
