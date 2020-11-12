@@ -97,7 +97,11 @@ JNIEXPORT jint JNICALL
 Java_com_xiaomi_mace_JniMaceUtils_maceMobilenetCreateEngine(
     JNIEnv *env, jclass thisObj, jint num_threads, jint cpu_affinity_policy,
     jint gpu_perf_hint, jint gpu_priority_hint,
-    jstring model_name_str, jstring device) {
+    jstring model_name_str, jstring device, jint operator_start_index, jint operator_end_index) {
+  __android_log_print(ANDROID_LOG_INFO,
+                      "image_classify attrs",
+                      "operator_start_index: %d, operator_end_index: %d",
+                      operator_start_index, operator_end_index);
   MaceContext &mace_context = GetMaceContext();
 
   // get device

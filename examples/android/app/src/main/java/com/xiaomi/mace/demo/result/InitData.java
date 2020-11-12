@@ -32,6 +32,9 @@ public class InitData {
     private int gpuPriorityHint;
     private String storagePath = "";
 
+    private int operatorStartIndex = -1;
+    private int operatorEndIndex = -1;
+
     public InitData() {
         model = MODELS[0];
         ompNumThreads = 2;
@@ -114,5 +117,21 @@ public class InitData {
             }
         }
         return false;
+    }
+
+    public void setOperatorStartIndex(int operatorStartIndex) {
+        this.operatorStartIndex = operatorStartIndex;
+    }
+
+    public void setOperatorEndIndex(int operatorEndIndex) {
+        this.operatorEndIndex = operatorEndIndex;
+    }
+
+    public int getOperatorStartIndex() {
+        return operatorStartIndex;
+    }
+
+    public int getOperatorEndIndex() {
+        return operatorEndIndex;
     }
 }

@@ -38,6 +38,7 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -47,6 +48,8 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     ImageView mPictureResult;
     Button mSelectMode;
     Button mSelectPhoneType;
+    Button mSelectOperatorStartIndex;
+    Button mSelectOperatorEndIndex;
     CameraTextureView mCameraTextureView;
     private TextView mResultView;
     private InitData initData = new InitData();
@@ -66,6 +69,13 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
 
         mSelectPhoneType = findViewById(R.id.tv_select_phone_type);
         mSelectPhoneType.setOnClickListener(this);
+
+        mSelectOperatorStartIndex = findViewById(R.id.tv_select_operator_start);
+        mSelectOperatorStartIndex.setOnClickListener(this);
+
+        mSelectOperatorEndIndex = findViewById(R.id.tv_select_operator_end);
+        mSelectOperatorEndIndex.setOnClickListener(this);
+
         initJni();
         initView();
 
@@ -86,6 +96,8 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private void initView() {
         mSelectMode.setText(initData.getModel());
         mSelectPhoneType.setText(initData.getDevice());
+        mSelectOperatorStartIndex.setText("0");
+        mSelectOperatorEndIndex.setText("30");  // TODO: Get the last operator index dynamically
     }
 
     @Override
@@ -135,7 +147,45 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
             case R.id.tv_select_phone_type:
                 showPhoneType();
                 break;
+            case R.id.tv_select_operator_start:
+                showOperatorStartIndex();
+                break;
+            case R.id.tv_select_operator_end:
+                showEndOperatorEndIndex();
+                break;
         }
+    }
+
+    private void showOperatorStartIndex() {
+        List menus = new ArrayList(30);
+        for (int i = 0; i < 30; i++) {
+            menus.add(Integer.toString(i));
+        }
+        ContextMenuDialog.show(this, menus, new ContextMenuDialog.OnClickItemListener() {
+            @Override
+            public void onCLickItem(String content) {
+                mSelectOperatorStartIndex.setText(content);
+                int operatorStartIndex = Integer.parseInt(content);
+                initData.setOperatorStartIndex(operatorStartIndex);
+                AppModel.instance.maceMobilenetCreateEngine(initData, CameraActivity.this);
+            }
+        });
+    }
+
+    private void showEndOperatorEndIndex() {
+        List menus = new ArrayList(30);
+        for (int i = 0; i < 30; i++) {
+            menus.add(Integer.toString(i));
+        }
+        ContextMenuDialog.show(this, menus, new ContextMenuDialog.OnClickItemListener() {
+            @Override
+            public void onCLickItem(String content) {
+                mSelectOperatorEndIndex.setText(content);
+                int operatorEndIndex = Integer.parseInt(content);
+                initData.setOperatorEndIndex(operatorEndIndex);
+                AppModel.instance.maceMobilenetCreateEngine(initData, CameraActivity.this);
+            }
+        });
     }
 
     private void initJni() {

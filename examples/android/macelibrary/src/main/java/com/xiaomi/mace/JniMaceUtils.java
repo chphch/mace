@@ -22,8 +22,9 @@ package com.xiaomi.mace;
 
         public static native int maceMobilenetCreateGPUContext(String storagePath);
 
-    public static native int maceMobilenetCreateEngine(int ompNumThreads, int cpuAffinityPolicy, int gpuPerfHint, int gpuPriorityHint, String model, String device);
+        public static native int maceMobilenetCreateEngine(
+                int ompNumThreads, int cpuAffinityPolicy, int gpuPerfHint, int gpuPriorityHint,
+                String model, String device, int operatorStartIndex, int operatorEndIndex);
 
-    public static native float[] maceMobilenetClassify(float[] input);
-
+        public static native float[] maceMobilenetClassify(float[] input);
 }

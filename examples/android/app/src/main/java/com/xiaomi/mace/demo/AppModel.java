@@ -55,7 +55,8 @@ public class AppModel {
                 int result = JniMaceUtils.maceMobilenetCreateEngine(
                         initData.getOmpNumThreads(), initData.getCpuAffinityPolicy(),
                         initData.getGpuPerfHint(), initData.getGpuPriorityHint(),
-                        initData.getModel(), initData.getDevice());
+                        initData.getModel(), initData.getDevice(),
+                        initData.getOperatorStartIndex(), initData.getOperatorEndIndex());
                 Log.i("APPModel", "maceMobilenetCreateEngine result = " + result);
 
                 if (result == -1) {

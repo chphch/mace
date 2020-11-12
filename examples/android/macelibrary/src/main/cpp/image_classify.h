@@ -39,7 +39,7 @@ Java_com_xiaomi_mace_JniMaceUtils_maceMobilenetCreateGPUContext(JNIEnv *,
  */
 JNIEXPORT jint JNICALL
 Java_com_xiaomi_mace_JniMaceUtils_maceMobilenetCreateEngine
-  (JNIEnv *, jclass, jint, jint, jint, jint, jstring, jstring);
+  (JNIEnv *, jclass, jint, jint, jint, jint, jstring, jstring, jint, jint);
 
 /*
  * Class:     com_xiaomi_mace_JniMaceUtils
