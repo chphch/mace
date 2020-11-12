@@ -52,6 +52,8 @@ struct MaceContext {
       {"mobilenet_v2_quant", {"input", "output",
                                   {1, 224, 224, 3}, {1, 1001}}}
   };
+  int operator_start_index;
+  int operator_end_index;
 };
 
 mace::DeviceType ParseDeviceType(const std::string &device) {
@@ -103,6 +105,8 @@ Java_com_xiaomi_mace_JniMaceUtils_maceMobilenetCreateEngine(
                       "operator_start_index: %d, operator_end_index: %d",
                       operator_start_index, operator_end_index);
   MaceContext &mace_context = GetMaceContext();
+  mace_context.operator_start_index = operator_start_index;
+  mace_context.operator_end_index = operator_end_index;
 
   // get device
   const char *device_ptr = env->GetStringUTFChars(device, nullptr);
@@ -222,7 +226,7 @@ Java_com_xiaomi_mace_JniMaceUtils_maceMobilenetClassify(
   outputs[output_name] = mace::MaceTensor(output_shape, buffer_out);
 
   // run model
-  mace_context.engine->Run(inputs, &outputs);
+  mace_context.engine->Run(inputs, &outputs, nullptr, mace_context.operator_start_index, mace_context.operator_end_index);
 
   // transform output
   jfloatArray jOutputData = env->NewFloatArray(output_size);  // allocate

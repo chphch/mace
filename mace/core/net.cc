@@ -125,7 +125,7 @@ MaceStatus SerialNet::Init() {
   return MaceStatus::MACE_SUCCESS;
 }
 
-MaceStatus SerialNet::Run(RunMetadata *run_metadata) {
+MaceStatus SerialNet::Run(RunMetadata *run_metadata, int operator_start_index, int operator_end_index) {
   const char *profiling = getenv("MACE_OPENCL_PROFILING");
   bool enable_opencl_profiling =
       profiling != nullptr && strlen(profiling) == 1 && profiling[0] == '1';
@@ -133,7 +133,15 @@ MaceStatus SerialNet::Run(RunMetadata *run_metadata) {
   MACE_MEMORY_LOGGING_GUARD();
   MACE_LATENCY_LOGGER(1, "Running net");
   OpContext context(ws_, cpu_device_.get());
+  int i = 0;
   for (auto iter = operators_.begin(); iter != operators_.end(); ++iter) {
+
+    // Skip the operators out of the given range.
+    if (operator_start_index >= 0 && operator_end_index >= 0 && (i < operator_start_index || i > operator_end_index)) {
+      continue;
+    }
+    i++;
+
     auto &op = *iter;
     DeviceType device_type = op->device_type();
     MACE_LATENCY_LOGGER(1, "Running operator ", op->debug_def().name(),

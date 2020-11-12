@@ -37,7 +37,7 @@ class NetBase {
 
   virtual MaceStatus Init() = 0;
 
-  virtual MaceStatus Run(RunMetadata *run_metadata = nullptr) = 0;
+  virtual MaceStatus Run(RunMetadata *run_metadata = nullptr, int operator_start_index=-1, int operator_end_index=-1) = 0;
 
  protected:
   MACE_DISABLE_COPY_AND_ASSIGN(NetBase);
@@ -53,7 +53,7 @@ class SerialNet : public NetBase {
 
   MaceStatus Init() override;
 
-  MaceStatus Run(RunMetadata *run_metadata = nullptr) override;
+  MaceStatus Run(RunMetadata *run_metadata = nullptr, int operator_start_index = -1, int operator_end_index = -1) override;
 
  protected:
   Workspace *ws_;

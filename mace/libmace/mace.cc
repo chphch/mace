@@ -486,7 +486,9 @@ class MaceEngine::Impl {
 
   MaceStatus Run(const std::map<std::string, MaceTensor> &inputs,
                  std::map<std::string, MaceTensor> *outputs,
-                 RunMetadata *run_metadata);
+                 RunMetadata *run_metadata,
+                 int operator_start_index,
+                 int operator_end_index);
 
  private:
   MaceStatus TransposeInput(
@@ -1040,7 +1042,9 @@ MaceStatus MaceEngine::Impl::TransposeOutput(
 MaceStatus MaceEngine::Impl::Run(
     const std::map<std::string, MaceTensor> &inputs,
     std::map<std::string, MaceTensor> *outputs,
-    RunMetadata *run_metadata) {
+    RunMetadata *run_metadata,
+    int operator_start_index,
+    int operator_end_index) {
   MACE_CHECK_NOTNULL(outputs);
   std::map<std::string, Tensor *> input_tensors;
   std::map<std::string, Tensor *> output_tensors;
@@ -1075,7 +1079,7 @@ MaceStatus MaceEngine::Impl::Run(
                "apu run error");
   } else {
 #endif
-  MACE_RETURN_IF_ERROR(net_->Run(run_metadata));
+  MACE_RETURN_IF_ERROR(net_->Run(run_metadata, operator_start_index, operator_end_index));
 #if defined(MACE_ENABLE_HEXAGON) || defined(MACE_ENABLE_HTA)
   }
 #endif
@@ -1120,13 +1124,13 @@ MaceStatus MaceEngine::Init(const NetDef *net_def,
 
 MaceStatus MaceEngine::Run(const std::map<std::string, MaceTensor> &inputs,
                            std::map<std::string, MaceTensor> *outputs,
-                           RunMetadata *run_metadata) {
-  return impl_->Run(inputs, outputs, run_metadata);
+                           RunMetadata *run_metadata, int operator_start_index, int operator_end_index) {
+  return impl_->Run(inputs, outputs, run_metadata, operator_start_index, operator_end_index);
 }
 
 MaceStatus MaceEngine::Run(const std::map<std::string, MaceTensor> &inputs,
                            std::map<std::string, MaceTensor> *outputs) {
-  return impl_->Run(inputs, outputs, nullptr);
+  return impl_->Run(inputs, outputs, nullptr, -1, -1);
 }
 
 MaceStatus MaceEngine::Init(const NetDef *net_def,

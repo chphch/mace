@@ -455,7 +455,9 @@ class MACE_API MaceEngine {
 
   MaceStatus Run(const std::map<std::string, MaceTensor> &inputs,
                  std::map<std::string, MaceTensor> *outputs,
-                 RunMetadata *run_metadata);
+                 RunMetadata *run_metadata,
+                 int operator_start_index,
+                 int operator_end_index);
 
   // @Deprecated, will be removed in future version
   MaceStatus Init(const NetDef *net_def,
