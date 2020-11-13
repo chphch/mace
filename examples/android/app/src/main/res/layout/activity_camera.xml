@@ -79,6 +79,6 @@
         android:textSize="15dp"
         android:fontFamily="sans-serif-light"
         android:textAllCaps="false"
-        android:text="index: -1/-1\navg: 0 ms\nstd: 0 ms" />
+        android:text="index: -1/-1\navg: -1 ms\nstd: -1 ms\ntotal time (ms): -1" />
 
 </FrameLayout>

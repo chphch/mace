@@ -38,6 +38,7 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -60,6 +61,7 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private boolean isProfiling = false;
     private List<Long> profiledCostTimes;
     private final int profileTrialNum = 50;
+    private long startTimeMilliseconds;
 
     private List operatorNames;
 
@@ -182,13 +184,14 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
             mStartProfile.setText("Profiling...");
             isProfiling = true;
             profiledCostTimes = new LinkedList<>();
+            startTimeMilliseconds = System.currentTimeMillis();
         }
     }
 
     private void doProfile(long costTime) {
         if (isProfiling) {
             profiledCostTimes.add(costTime);
-            setProfileResultView(profiledCostTimes.size(), -1, -1);
+            setProfileResultView(profiledCostTimes.size(), -1, -1, -1);
             if (profiledCostTimes.size() == profileTrialNum) {
                 endProfile();
             }
@@ -196,14 +199,21 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     }
 
     private void endProfile() {
-        setProfileResultView(-1, (int) Utils.mean(profiledCostTimes), (int) Utils.std(profiledCostTimes));
+        long profileTimeMilliseconds = System.currentTimeMillis() - startTimeMilliseconds;
+        setProfileResultView(-1, (int) Utils.mean(profiledCostTimes), (int) Utils.std(profiledCostTimes), profileTimeMilliseconds);
         profiledCostTimes = new LinkedList<>();
         mStartProfile.setText("Start Profile");
         isProfiling = false;
     }
 
-    private void setProfileResultView(int index, int avgCostTime, int stdCostTime) {
-        mProfileResult.setText("index: " + index + "/" + profileTrialNum + "\navg: " + avgCostTime + " ms\nstd: " + stdCostTime);
+    private void setProfileResultView(int index, int avgCostTime, int stdCostTime, long profiledTimeMilliseconds) {
+        NumberFormat numberFormat = NumberFormat.getInstance();
+        numberFormat.setGroupingUsed(true);
+        mProfileResult.setText(
+                "index: " + index + "/" + profileTrialNum
+                + "\navg: " + avgCostTime + " ms"
+                + "\nstd: " + stdCostTime
+                + "\ntotal time (ms): " + numberFormat.format(profiledTimeMilliseconds));
     }
 
     private void showOperatorStartIndex() {
