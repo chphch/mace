@@ -60,4 +60,25 @@
         android:layout_marginLeft="25dp"
         android:text="End Operator" />
 
+    <Button
+        android:id="@+id/tv_start_profile"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginVertical="75dp"
+        android:layout_marginRight="25dp"
+        android:text="Start Profile" />
+
+    <Button
+        android:id="@+id/tv_profile_result"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginVertical="125dp"
+        android:layout_marginRight="25dp"
+        android:textSize="15dp"
+        android:fontFamily="sans-serif-light"
+        android:textAllCaps="false"
+        android:text="index: -1/-1\navg: 0 ms\nstd: 0 ms" />
+
 </FrameLayout>

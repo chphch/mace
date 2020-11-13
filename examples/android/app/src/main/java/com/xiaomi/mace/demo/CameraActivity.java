@@ -40,6 +40,7 @@ import org.greenrobot.eventbus.ThreadMode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 
 public class CameraActivity extends Activity implements View.OnClickListener, AppModel.CreateEngineCallback {
@@ -53,6 +54,13 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     CameraTextureView mCameraTextureView;
     private TextView mResultView;
     private InitData initData = new InitData();
+
+    // For Profiling
+    Button mStartProfile;
+    TextView mProfileResult;
+    private boolean isProfiling = false;
+    private List<Long> profiledCostTimes;
+    private final int profileTrialNum = 50;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +83,12 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
 
         mSelectOperatorEndIndex = findViewById(R.id.tv_select_operator_end);
         mSelectOperatorEndIndex.setOnClickListener(this);
+
+        mStartProfile = findViewById(R.id.tv_start_profile);
+        mStartProfile.setOnClickListener(this);
+
+        mProfileResult = findViewById(R.id.tv_profile_result);
+        mProfileResult.setOnClickListener(this);
 
         initJni();
         initView();
@@ -135,6 +149,9 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
                     + resultData.getData().probability + "\ncost time(ms): "
                     + resultData.getData().costTime;
             mResultView.setText(result);
+            if (isProfiling) {
+                doProfile(resultData.getData().costTime);
+            }
         }
     }
 
@@ -153,7 +170,39 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
             case R.id.tv_select_operator_end:
                 showEndOperatorEndIndex();
                 break;
+            case R.id.tv_start_profile:
+                startProfile();
+                break;
         }
+    }
+
+    private void startProfile() {
+        if (!isProfiling) {
+            mStartProfile.setText("Profiling...");
+            isProfiling = true;
+            profiledCostTimes = new LinkedList<>();
+        }
+    }
+
+    private void doProfile(long costTime) {
+        if (isProfiling) {
+            profiledCostTimes.add(costTime);
+            setProfileResultView(profiledCostTimes.size(), -1, -1);
+            if (profiledCostTimes.size() == profileTrialNum) {
+                endProfile();
+            }
+        }
+    }
+
+    private void endProfile() {
+        setProfileResultView(-1, (int) Utils.mean(profiledCostTimes), (int) Utils.std(profiledCostTimes));
+        profiledCostTimes = new LinkedList<>();
+        mStartProfile.setText("Start Profile");
+        isProfiling = false;
+    }
+
+    private void setProfileResultView(int index, int avgCostTime, int stdCostTime) {
+        mProfileResult.setText("index: " + index + "/" + profileTrialNum + "\navg: " + avgCostTime + " ms\nstd: " + stdCostTime);
     }
 
     private void showOperatorStartIndex() {
