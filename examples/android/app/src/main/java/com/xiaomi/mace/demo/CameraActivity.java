@@ -38,7 +38,6 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -61,6 +60,8 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private boolean isProfiling = false;
     private List<Long> profiledCostTimes;
     private final int profileTrialNum = 50;
+
+    private List operatorNames;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,8 +111,8 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private void initView() {
         mSelectMode.setText(initData.getModel());
         mSelectPhoneType.setText(initData.getDevice());
-        mSelectOperatorStartIndex.setText("0");
-        mSelectOperatorEndIndex.setText("30");  // TODO: Get the last operator index dynamically
+        mSelectOperatorStartIndex.setText("1");
+        mSelectOperatorEndIndex.setText("" + operatorNames.size());
     }
 
     @Override
@@ -206,15 +207,12 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     }
 
     private void showOperatorStartIndex() {
-        List menus = new ArrayList(30);
-        for (int i = 0; i < 30; i++) {
-            menus.add(Integer.toString(i));
-        }
-        ContextMenuDialog.show(this, menus, new ContextMenuDialog.OnClickItemListener() {
+        ContextMenuDialog.show(this, operatorNames, new ContextMenuDialog.OnClickItemListener() {
             @Override
             public void onCLickItem(String content) {
                 mSelectOperatorStartIndex.setText(content);
-                int operatorStartIndex = Integer.parseInt(content);
+                // initData.operatorStartIndex starts from 0, and content starts from 1
+                int operatorStartIndex = Integer.parseInt(content) - 1;
                 initData.setOperatorStartIndex(operatorStartIndex);
                 AppModel.instance.maceMobilenetCreateEngine(initData, CameraActivity.this);
             }
@@ -222,15 +220,12 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     }
 
     private void showEndOperatorEndIndex() {
-        List menus = new ArrayList(30);
-        for (int i = 0; i < 30; i++) {
-            menus.add(Integer.toString(i));
-        }
-        ContextMenuDialog.show(this, menus, new ContextMenuDialog.OnClickItemListener() {
+        ContextMenuDialog.show(this, operatorNames, new ContextMenuDialog.OnClickItemListener() {
             @Override
             public void onCLickItem(String content) {
                 mSelectOperatorEndIndex.setText(content);
-                int operatorEndIndex = Integer.parseInt(content);
+                // initData.operatorEndIndex starts from 0, and content starts from 1
+                int operatorEndIndex = Integer.parseInt(content) - 1;
                 initData.setOperatorEndIndex(operatorEndIndex);
                 AppModel.instance.maceMobilenetCreateEngine(initData, CameraActivity.this);
             }
@@ -240,6 +235,12 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private void initJni() {
         AppModel.instance.maceMobilenetCreateGPUContext(initData);
         AppModel.instance.maceMobilenetCreateEngine(initData, this);
+
+        // TODO: Get operatorNames from the model dynamically.
+        operatorNames = new LinkedList();
+        for (int i = 1; i <= 31; i++) {
+            operatorNames.add("" + i);
+        }
     }
 
     @Override
