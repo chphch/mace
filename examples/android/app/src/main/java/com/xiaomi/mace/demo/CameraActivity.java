@@ -55,6 +55,8 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private TextView mResultView;
     private InitData initData = new InitData();
 
+    Button mTurnOnOffDNN;
+
     // For Profiling
     Button mStartProfile;
     TextView mProfileResult;
@@ -92,6 +94,9 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
 
         mProfileResult = findViewById(R.id.tv_profile_result);
         mProfileResult.setOnClickListener(this);
+
+        mTurnOnOffDNN = findViewById(R.id.tv_turn_on_off_dnn);
+        mTurnOnOffDNN.setOnClickListener(this);
 
         initJni();
         initView();
@@ -176,7 +181,15 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
             case R.id.tv_start_profile:
                 startProfile();
                 break;
+            case R.id.tv_turn_on_off_dnn:
+                turn_on_off_dnn();
+                break;
         }
+    }
+
+    private void turn_on_off_dnn() {
+        AppModel.instance.switchStopClassify();
+        mTurnOnOffDNN.setText(AppModel.instance.isStopClassify() ? "DNN Stopped" : "DNN Running...");
     }
 
     private void startProfile() {

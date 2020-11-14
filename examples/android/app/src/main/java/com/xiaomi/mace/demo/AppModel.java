@@ -95,4 +95,11 @@ public class AppModel {
         void onCreateEngineFail(final boolean quit);
     }
 
+    public boolean isStopClassify() {
+        return stopClassify;
+    }
+
+    public void switchStopClassify() {
+        stopClassify = !stopClassify;
+    }
 }
