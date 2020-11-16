@@ -56,6 +56,8 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     private InitData initData = new InitData();
 
     Button mTurnOnOffDNN;
+    Button mTurnOnOffCamera;
+    private boolean isCameraOn = true;
 
     // For Profiling
     Button mStartProfile;
@@ -98,6 +100,9 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
         mTurnOnOffDNN = findViewById(R.id.tv_turn_on_off_dnn);
         mTurnOnOffDNN.setOnClickListener(this);
 
+        mTurnOnOffCamera = findViewById(R.id.tv_turn_on_off_camera);
+        mTurnOnOffCamera.setOnClickListener(this);
+
         initJni();
         initView();
 
@@ -106,13 +111,17 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     @Override
     protected void onStart() {
         super.onStart();
-        EventBus.getDefault().register(this);
+        if (isCameraOn && !EventBus.getDefault().isRegistered(this)) {
+            EventBus.getDefault().register(this);
+        }
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        EventBus.getDefault().unregister(this);
+        if (EventBus.getDefault().isRegistered(this)) {
+            EventBus.getDefault().unregister(this);
+        }
     }
 
     private void initView() {
@@ -125,9 +134,10 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     @Override
     protected void onResume() {
         super.onResume();
-        mCameraEngage.onResume();
+        if (isCameraOn) {
+            mCameraEngage.onResume();
+        }
     }
-
 
     @Override
     protected void onPause() {
@@ -184,7 +194,23 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
             case R.id.tv_turn_on_off_dnn:
                 turn_on_off_dnn();
                 break;
+            case R.id.tv_turn_on_off_camera:
+                turn_on_off_camera();
+                break;
         }
+    }
+
+    private void turn_on_off_camera() {
+        if (isCameraOn) {
+            EventBus.getDefault().unregister(this);
+            mCameraEngage.onPause();
+            mTurnOnOffCamera.setText("Camera is OFF");
+        } else {
+            EventBus.getDefault().register(this);
+            mCameraEngage.onResume();
+            mTurnOnOffCamera.setText("Camera is ON");
+        }
+        isCameraOn = !isCameraOn;
     }
 
     private void turn_on_off_dnn() {
