@@ -19,7 +19,9 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.annotation.NonNull;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -27,6 +29,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 
+import com.xiaomi.mace.JniMaceUtils;
 import com.xiaomi.mace.demo.camera.CameraEngage;
 import com.xiaomi.mace.demo.camera.CameraTextureView;
 import com.xiaomi.mace.demo.camera.ContextMenuDialog;
@@ -38,6 +41,7 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.nio.FloatBuffer;
 import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -51,13 +55,26 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
     Button mSelectPhoneType;
     Button mSelectOperatorStartIndex;
     Button mSelectOperatorEndIndex;
+    Button mTurnOnOffCamera;
+    Button mTurnOnOffDNN;
     CameraTextureView mCameraTextureView;
     private TextView mResultView;
     private InitData initData = new InitData();
-
-    Button mTurnOnOffDNN;
-    Button mTurnOnOffCamera;
     private boolean isCameraOn = true;
+
+    // For DNN running without Camera on
+    private Handler mBackgroundHandler = new Handler();
+    private static final int FINAL_SIZE = 224;
+    private Runnable mHandleDNNRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isCameraOn && !AppModel.instance.isStopClassify()) {
+                FloatBuffer floatBuffer = FloatBuffer.allocate(FINAL_SIZE * FINAL_SIZE * 3);
+                JniMaceUtils.maceMobilenetClassify(floatBuffer.array());
+            }
+            mBackgroundHandler.postDelayed(mHandleDNNRunnable, 200);
+        }
+    };
 
     // For Profiling
     Button mStartProfile;
@@ -106,6 +123,7 @@ public class CameraActivity extends Activity implements View.OnClickListener, Ap
         initJni();
         initView();
 
+        mBackgroundHandler.post(mHandleDNNRunnable);
     }
 
     @Override
