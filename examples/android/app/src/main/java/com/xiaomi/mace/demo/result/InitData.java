@@ -17,14 +17,24 @@ package com.xiaomi.mace.demo.result;
 import android.os.Environment;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 public class InitData {
 
     public static final String[] DEVICES = new String[]{"CPU", "GPU"};
-    public static final String[] MODELS = new String[]{"mobilenet_v1", "mobilenet_v2", "mobilenet_v1_quant", "mobilenet_v2_quant"};
+    public static final String[] MODELS = new String[]{"mobilenet_v1", "mobilenet_v2", "mobilenet_v1_quant", "mobilenet_v2_quant", "arcFaceResNet50"};
+    public static final Map<String, Integer> FINAL_SIZES = new HashMap<String, Integer>() {{
+        put("mobilenet_v1", 224);
+        put("mobilenet_v2", 224);
+        put("mobilenet_v1_quant", 224);
+        put("mobilenet_v2_quant", 224);
+        put("arcFaceResNet50", 112);
+    }};
     private static final String[] ONLY_CPU_MODELS = new String[]{"mobilenet_v1_quant", "mobilenet_v2_quant"};
 
     private String model;
+    private int finalSize;
     private String device = "";
     private int ompNumThreads;
     private int cpuAffinityPolicy;
@@ -37,6 +47,7 @@ public class InitData {
 
     public InitData() {
         model = MODELS[0];
+        finalSize = FINAL_SIZES.get(model);
         ompNumThreads = 2;
         cpuAffinityPolicy = 1;
         gpuPerfHint = 3;
@@ -56,6 +67,7 @@ public class InitData {
 
     public void setModel(String model) {
         this.model = model;
+        this.finalSize = FINAL_SIZES.get(model);
     }
 
     public String getDevice() {
@@ -133,5 +145,9 @@ public class InitData {
 
     public int getOperatorEndIndex() {
         return operatorEndIndex;
+    }
+
+    public int getFinalSize() {
+        return finalSize;
     }
 }

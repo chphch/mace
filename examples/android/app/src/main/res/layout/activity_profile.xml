@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000"
+    tools:context="com.xiaomi.mace.demo.CameraActivity">
+
+    <com.xiaomi.mace.demo.camera.CameraTextureView
+        android:id="@+id/camera_texture"
+        android:layout_gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <Button
+        android:id="@+id/tv_select_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="25dp"
+        android:text="模式选择" />
+
+    <Button
+        android:id="@+id/tv_select_phone_type"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_margin="25dp"
+        android:text="手机配置选择"/>
+
+    <Button
+        android:id="@+id/tv_turn_on_off_dnn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="175dp"
+        android:layout_marginLeft="25dp"
+        android:text="DNN Running..." />
+
+    <Button
+        android:id="@+id/tv_select_operator_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="75dp"
+        android:layout_marginLeft="25dp"
+        android:text="Start Operator" />
+
+    <Button
+        android:id="@+id/tv_select_operator_end"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginVertical="125dp"
+        android:layout_marginLeft="25dp"
+        android:text="End Operator" />
+
+    <Button
+        android:id="@+id/tv_start_profile"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginVertical="75dp"
+        android:layout_marginRight="25dp"
+        android:text="Start Profile" />
+
+    <Button
+        android:id="@+id/tv_profile_result"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginVertical="125dp"
+        android:layout_marginRight="25dp"
+        android:textSize="15dp"
+        android:fontFamily="sans-serif-light"
+        android:textAllCaps="false"
+        android:text="index: -1/-1\navg: -1 ms\nstd: -1 ms\ntotal time (ms): -1" />
+
+</FrameLayout>
