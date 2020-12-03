@@ -3,6 +3,7 @@ package com.xiaomi.mace.demo;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -10,13 +11,17 @@ import android.widget.Button;
 import com.xiaomi.mace.JniMaceUtils;
 import com.xiaomi.mace.demo.camera.ContextMenuDialog;
 import com.xiaomi.mace.demo.result.InitData;
+import com.xiaomi.mace.demo.result.LabelCache;
+import com.xiaomi.mace.demo.result.ProfileAppModel;
+import com.xiaomi.mace.demo.result.ResultData;
 
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
-public class ProfileActivity extends Activity implements AppModel.CreateEngineCallback, View.OnClickListener {
+public class ProfileActivity extends Activity implements View.OnClickListener {
+    private static final String TAG = ProfileActivity.class.getSimpleName();
     Button mSelectMode;
     Button mSelectPhoneType;
     Button mTurnOnOffDNN;
@@ -27,17 +32,23 @@ public class ProfileActivity extends Activity implements AppModel.CreateEngineCa
 
     private InitData initData = new InitData();
 
+    private boolean isDNNRunning;
+
     private Handler mBackgroundHandler = new Handler();
     private Runnable mHandleDNNRunnable = new Runnable() {
         @Override
         public void run() {
-            if (!AppModel.instance.isStopClassify()) {
+            if (isDNNRunning) {
                 int finalSize = initData.getFinalSize();
-
                 FloatBuffer floatBuffer = FloatBuffer.allocate(finalSize * finalSize * 3);
-                JniMaceUtils.maceMobilenetClassify(floatBuffer.array());
+
+                long start = System.currentTimeMillis();
+                float[] result = JniMaceUtils.maceMobilenetClassify(floatBuffer.array());
+                final ResultData resultData = LabelCache.instance().getResultFirst(result);
+                long costTime = System.currentTimeMillis() - start;
+                Log.d(TAG, "mHandleDNNRunnable: name=" + resultData.name + ", time=" + costTime);
+                mBackgroundHandler.postDelayed(mHandleDNNRunnable, 200);
             }
-            mBackgroundHandler.postDelayed(mHandleDNNRunnable, 200);
         }
     };
 
@@ -69,14 +80,14 @@ public class ProfileActivity extends Activity implements AppModel.CreateEngineCa
     private void initView() {
         mSelectMode.setText(initData.getModel());
         mSelectPhoneType.setText(initData.getDevice());
-        mTurnOnOffDNN.setText("DNN Running...");
+        mTurnOnOffDNN.setText("DNN Stopped");
         mSelectOperatorStartIndex.setText("1");
         mSelectOperatorEndIndex.setText("" + operatorNames.size());
     }
 
     private void initJni() {
-        AppModel.instance.maceMobilenetCreateGPUContext(initData);
-        AppModel.instance.maceMobilenetCreateEngine(initData, this);
+        ProfileAppModel.maceMobilenetCreateGPUContext(initData);
+        ProfileAppModel.maceMobilenetCreateEngine(initData);
 
         // TODO: Get operatorNames from the model dynamically.
         operatorNames = new LinkedList();
@@ -113,7 +124,7 @@ public class ProfileActivity extends Activity implements AppModel.CreateEngineCa
             public void onCLickItem(String content) {
                 mSelectPhoneType.setText(content);
                 initData.setDevice(content);
-                AppModel.instance.maceMobilenetCreateEngine(initData, ProfileActivity.this);
+                ProfileAppModel.maceMobilenetCreateEngine(initData);
             }
         });
     }
@@ -126,14 +137,28 @@ public class ProfileActivity extends Activity implements AppModel.CreateEngineCa
                 mSelectMode.setText(content);
                 initData.setModel(content);
 //                handleOnlyCpuSupportByModel(content);
-                AppModel.instance.maceMobilenetCreateEngine(initData, ProfileActivity.this);
+                ProfileAppModel.maceMobilenetCreateEngine(initData);
             }
         });
     }
 
     private void turn_on_off_dnn() {
-        AppModel.instance.switchStopClassify();
-        mTurnOnOffDNN.setText(AppModel.instance.isStopClassify() ? "DNN Stopped" : "DNN Running...");
+        if (isDNNRunning) {
+            turn_off_dnn();
+        } else {
+            turn_on_dnn();
+        }
+    }
+
+    private void turn_on_dnn() {
+        isDNNRunning = true;
+        mBackgroundHandler.post(mHandleDNNRunnable);
+        mTurnOnOffDNN.setText("DNN Running...");
+    }
+
+    private void turn_off_dnn() {
+        isDNNRunning = false;
+        mTurnOnOffDNN.setText("DNN Stopped");
     }
 
     private void showOperatorStartIndex() {
@@ -144,7 +169,7 @@ public class ProfileActivity extends Activity implements AppModel.CreateEngineCa
                 // initData.operatorStartIndex starts from 0, and content starts from 1
                 int operatorStartIndex = Integer.parseInt(content) - 1;
                 initData.setOperatorStartIndex(operatorStartIndex);
-                AppModel.instance.maceMobilenetCreateEngine(initData, ProfileActivity.this);
+                ProfileAppModel.maceMobilenetCreateEngine(initData);
             }
         });
     }
@@ -157,13 +182,8 @@ public class ProfileActivity extends Activity implements AppModel.CreateEngineCa
                 // initData.operatorEndIndex starts from 0, and content starts from 1
                 int operatorEndIndex = Integer.parseInt(content) - 1;
                 initData.setOperatorEndIndex(operatorEndIndex);
-                AppModel.instance.maceMobilenetCreateEngine(initData, ProfileActivity.this);
+                ProfileAppModel.maceMobilenetCreateEngine(initData);
             }
         });
-    }
-
-    @Override
-    public void onCreateEngineFail(boolean quit) {
-
     }
 }
